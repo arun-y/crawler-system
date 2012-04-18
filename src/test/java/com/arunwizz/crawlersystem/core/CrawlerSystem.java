@@ -1,10 +1,12 @@
 package com.arunwizz.crawlersystem.core;
 
+import java.io.IOException;
+
 import com.arunwizz.crawlersystem.requestfilewatcher.FrontierWatcher;
 
 public class CrawlerSystem {
 	
-	public static void main(String argv[]) throws InterruptedException {
+	public static void main(String argv[]) throws InterruptedException, IOException {
 	
 		if (argv.length != 1) {
 			System.out

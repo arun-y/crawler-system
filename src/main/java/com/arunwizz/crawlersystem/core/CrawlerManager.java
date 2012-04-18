@@ -15,12 +15,19 @@ import java.util.concurrent.Delayed;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import com.arunwizz.crawlersystem.networkfetcher.NonBlockingNetworkFetcher;
+
 public class CrawlerManager implements Runnable {
 
 	private PriorityQueue<RequestMessage> requestMessageQueue;
+	
+	private NonBlockingNetworkFetcher nonBlockingNetworkFetcher;
 
-	public CrawlerManager() {
+	public CrawlerManager() throws IOException {
 		requestMessageQueue = new PriorityQueue<RequestMessage>();
+		nonBlockingNetworkFetcher = new NonBlockingNetworkFetcher();
+		Thread networkfetcher = new Thread(nonBlockingNetworkFetcher);
+		networkfetcher.start();
 	}
 
 
@@ -168,7 +175,7 @@ public class CrawlerManager implements Runnable {
 					String hostipaddress = doDNS(url);//FIXME: can do this in network class
 					int domainStartIndex = url.indexOf("://") + 3;
 					String hostname = url.substring(domainStartIndex,
-							url.indexOf("/", domainStartIndex));
+							url.indexOf(":", domainStartIndex));
 
 					try {
 						// check if this host entry already exists, if not create it
@@ -196,14 +203,23 @@ public class CrawlerManager implements Runnable {
 			}
 			
 			//TODO://start from here
+			
 			System.out.println("");
+			
+			do {
+				HostReadyEntry hostReadyEntry = readyQueue.poll();
+				if (hostReadyEntry != null) {
+					url = hostDictionary.get(hostReadyEntry.hostname).poll();
+					nonBlockingNetworkFetcher.get(new URL(url));
+				}
+			} while(true);
 			//start polling ready thread and send url from host queue for download
 			//upon coming back from download, put the host in wait thread
 			//if host is empty delete, delete host entry from host dictionary,
 			//if host dictionary is empty, return
 
 		} catch (IOException ioe) {
-
+			System.err.println(ioe.getMessage());
 		}
 	}
 
