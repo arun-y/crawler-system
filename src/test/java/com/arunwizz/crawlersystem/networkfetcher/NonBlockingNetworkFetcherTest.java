@@ -6,11 +6,19 @@ import java.net.URL;
 
 import org.junit.Test;
 
+import com.arunwizz.crawlersystem.networkfetcher.responseprocessor.IResponseHandler;
+import com.arunwizz.crawlersystem.networkfetcher.responseprocessor.ResponseHandler;
+
 public class NonBlockingNetworkFetcherTest {
 
 	@Test
 	public void testGet() throws IOException, InterruptedException {
-		NonBlockingNetworkFetcher fetcher = new NonBlockingNetworkFetcher();
+		
+		ResponseHandler responseHandler = new ResponseHandler();
+		Thread t0 = new Thread(responseHandler);
+		t0.start();
+		
+		NonBlockingNetworkFetcher fetcher = new NonBlockingNetworkFetcher(responseHandler);
 		Thread t1 = new Thread(fetcher);
 		t1.start();
 		

@@ -7,8 +7,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
 
-import com.arunwizz.crawlersystem.networkfetcher.responseprocessor.HTTPResponse;
-
 public class HTTPResponseHandler implements IHTTPResponseHandler {
 
 	public static Charset charset = Charset.forName("UTF-8");
