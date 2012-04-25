@@ -6,8 +6,9 @@ import java.net.URL;
 
 import org.junit.Test;
 
-import com.arunwizz.crawlersystem.networkfetcher.responseprocessor.IResponseHandler;
-import com.arunwizz.crawlersystem.networkfetcher.responseprocessor.ResponseHandler;
+import com.arunwizz.crawlersystem.network.http.client.response.IResponseHandler;
+import com.arunwizz.crawlersystem.network.http.client.response.ResponseHandler;
+import com.arunwizz.crawlersystem.network.tcp.NonBlockingNetworkFetcher;
 
 public class NonBlockingNetworkFetcherTest {
 

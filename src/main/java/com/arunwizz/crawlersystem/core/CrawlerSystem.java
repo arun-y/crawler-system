@@ -5,9 +5,10 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.arunwizz.crawlersystem.networkfetcher.NonBlockingNetworkFetcher;
-import com.arunwizz.crawlersystem.networkfetcher.responseprocessor.ResponseHandler;
-import com.arunwizz.crawlersystem.networkfetcher.responseprocessor.IResponseHandler;
+import com.arunwizz.crawlersystem.network.http.client.request.HTTPRequestWriter;
+import com.arunwizz.crawlersystem.network.http.client.response.ResponseHandler;
+import com.arunwizz.crawlersystem.network.tcp.NonBlockingNetworkFetcher;
+import com.arunwizz.crawlersystem.network.tcp.RequestWriter;
 import com.arunwizz.crawlersystem.requestfilewatcher.FrontierWatcher;
 
 public class CrawlerSystem {

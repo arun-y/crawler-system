@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import sun.util.logging.resources.logging;
 
-import com.arunwizz.crawlersystem.networkfetcher.NonBlockingNetworkFetcher;
+import com.arunwizz.crawlersystem.network.tcp.NonBlockingNetworkFetcher;
 import com.arunwizz.crawlersystem.statistics.Statistician;
 
 public class CrawlerManager implements Runnable {
@@ -265,7 +265,7 @@ public class CrawlerManager implements Runnable {
 						// upon coming back from download, put the host in wait
 						// thread
 						waitQueue
-								.put(new HostDelayedEntry(hostReadyEntry, 1000));
+								.put(new HostDelayedEntry(hostReadyEntry, 2000));
 						Statistician.hostWaitQueueEnter(hostReadyEntry.hostname, new Date().getTime());
 					} else {
 						// all urls belonging to this host is done
