@@ -1,40 +1,72 @@
 package com.arunwizz.crawlersystem.network.http.client.response;
 
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CharsetEncoder;
+import java.io.InputStream;
+import java.io.OutputStream;
 
-public class HTTPResponseHandler implements IHTTPResponseHandler {
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.concurrent.FutureCallback;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-	public static Charset charset = Charset.forName("UTF-8");
-	public static CharsetEncoder encoder = charset.newEncoder();
-	public static CharsetDecoder decoder = charset.newDecoder();
+public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(HTTPResponseHandler.class);
 	
-	private ByteBuffer buf = ByteBuffer.allocateDirect(128);
-	
-	@Override
-	public void handle(SocketChannel sChannel) {
-
-		try {
-			// Clear the buffer and read bytes from socket
-			buf.clear();
-			while ((sChannel.read(buf)) > 0) {
-				// To read the bytes, flip the buffer
-				buf.flip();
-				
-				// Read the bytes from the buffer ...;
-				// see Getting Bytes from a ByteBuffer
-				//System.out.println(numBytesRead + "bytes RECV: through " + selKey.hashCode() + " - " + decoder.decode(buf).toString());
-				System.out.print(decoder.decode(buf).toString());
-				buf.clear();
-			}
-		} catch (IOException e) {
-			// Connection may have been closed
-		}
-
+	private HttpRequest request;
+	public HTTPResponseHandler(HttpRequest request) {
+		this.request = request;
 	}
+	
+	private int counter;
+	private synchronized int getCounter() {
+		return ++counter;
+	}	
+	
+    public void completed(final HttpResponse response) {
+        LOGGER.info(request.getRequestLine() + "->" + response.getStatusLine());
+        File directory = new File("/data/crawler_system/"
+				+ request.getFirstHeader("Host").getValue());
+		if (!directory.isDirectory()) {
+			directory.mkdir();
+		}
+		File responseFile = new File(directory.getAbsolutePath() + "/"
+				+ getCounter());
+		try {
+			if (responseFile.createNewFile()
+					) {
+				byte[] iobuf = new byte[1024];
+				InputStream is = response.getEntity().getContent();
+				BufferedInputStream bis = new BufferedInputStream(is);
+				OutputStream os = new FileOutputStream(responseFile);
+				int byteCount = 0;
+				while ((byteCount = bis.read(iobuf)) != -1) {
+					os.write(iobuf, 0, byteCount);
+				}
+				os.flush();
+				os.close();
+				is.close();
+			}
+		} catch (IllegalStateException e) {
+			LOGGER.error(e.getMessage());
+		} catch (FileNotFoundException e) {
+			LOGGER.error(e.getMessage());
+		} catch (IOException e) {
+			LOGGER.error(e.getMessage());
+		}
+    }
+
+    public void failed(final Exception ex) {
+    	LOGGER.info(request.getRequestLine() + "->" + ex);
+    }
+
+    public void cancelled() {
+    	LOGGER.info(request.getRequestLine() + " cancelled");
+    }
 
 }

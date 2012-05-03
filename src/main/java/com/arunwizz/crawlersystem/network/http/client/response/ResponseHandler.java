@@ -5,7 +5,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.channels.SelectionKey;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.slf4j.Logger;
@@ -17,22 +20,22 @@ public class ResponseHandler implements Runnable {
 
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(ResponseHandler.class);
-	private LinkedBlockingQueue<String> responseQueue;
-	private HashMap<String, String> responseData;
+	private LinkedBlockingQueue<SelectionKey> responseQueue;
+	private HashMap<String, List<String>> responseData;
 
 	public ResponseHandler() {
-		responseQueue = new LinkedBlockingQueue<String>();
-		responseData = new HashMap<String, String>();
+		responseQueue = new LinkedBlockingQueue<SelectionKey>();
+		responseData = new HashMap<String, List<String>>();
 	}
 
 	@Override
 	public void run() {
 		LOGGER.debug("watcher thread started running");
-		String url;
+		SelectionKey selectionKey;
 		do {
-			if ((url = responseQueue.poll()) != null) {
+			if ((selectionKey = responseQueue.poll()) != null) {
 				LOGGER.trace("response found for handling");
-				parse(url);
+				parse(selectionKey);
 			} else {
 				try {
 					synchronized (mutex) {
@@ -55,46 +58,93 @@ public class ResponseHandler implements Runnable {
 	private class HTTPResponse {
 		private HashMap<String, String> header = new HashMap<String, String>();
 		private File outFile = null;
-		
-		public HTTPResponse(File outFile) {
+
+		public HTTPResponse() {
+		}
+
+		public void setOutFile(File outFile) {
 			this.outFile = outFile;
-		} 
-		
-		public void setHeader (String headerKey, String value) {
+		}
+
+		public File getOutFile() {
+			return outFile;
+		}
+
+		public void setHeader(String headerKey, String value) {
 			header.put(headerKey, value);
 		}
+
+		public String getHeader(String headerKey) {
+			return header.get(headerKey);
+		}
 	}
-	
-	private HashMap<String, HTTPResponse> responseOutFile = new HashMap<String, HTTPResponse>();
 
-	private void parse(String url) {
+	private HashMap<String, HTTPResponse> responseOut = new HashMap<String, HTTPResponse>();
 
-		String responseString = responseData.get(url);
+	private void parse(SelectionKey selectionKey) {
+
+		String url = selectionKey.attachment().toString();
+		
+		String responseString = null;//read(selectionKey);
+		
+		LOGGER.trace(responseString);
+		int lineStartIndex = 0;
+		int lineEndIndex = responseString.indexOf("\r\n");
 		try {
-			HTTPResponse response = responseOutFile.get(url);
+			HTTPResponse response = responseOut.get(url);
 			if (response == null) {
-				// based on response code, for 200 OK, save it to disk, else got
-				// the message
-				int lineStartIndex = 0;
-				int lineEndIndex = responseString.indexOf("\r\n");
-				String headerString = responseString.substring(lineStartIndex, lineEndIndex);
-				String [] header = headerString.split(":");
+				// new response
+				// read new line
+
+				String responseStatus = responseString.substring(
+						lineStartIndex, lineEndIndex);
+				if (!responseStatus.contains("200")) {
+					LOGGER.error("Error: " + responseStatus);
+					return;
+				}
+				lineStartIndex = lineEndIndex + 2;
+				lineEndIndex = responseString.indexOf("\r\n", lineStartIndex);
+				String headerString = responseString.substring(lineStartIndex,
+						lineEndIndex);
+				String[] header = headerString.split(":");
+				response = new HTTPResponse();
 				response.setHeader(header[0], header[1]);
-				while (header.length == 2) {
+				while (true) {
 					lineStartIndex = lineEndIndex + 2;
-					lineEndIndex = responseString.indexOf("\r\n", lineStartIndex);
-					headerString = responseString.substring(lineStartIndex, lineEndIndex);
+					lineEndIndex = responseString.indexOf("\r\n",
+							lineStartIndex);
+					headerString = responseString.substring(lineStartIndex,
+							lineEndIndex);
 					header = headerString.split(":");
+					if (header.length < 2) {
+						break;
+					}
 					response.setHeader(header[0], header[1]);
-				} 
-				//need to parse the header first and store it, based on header need to write remaining
-				//file, based transport -encoding chunk header
-				int responseHeaderEndIndex = responseString.indexOf("\r\n\r\n");
-				// parse header:
-				String responseHeader = responseString.substring(0,
-						responseHeaderEndIndex);
-				String responseBody = responseString
-						.substring(responseHeaderEndIndex + 4);
+				}
+				// done parsing all header.
+
+				responseOut.put(url, response);
+			}
+
+			// Transfer-Encoding is chunked: handle it
+			String responseBody = null;
+			String transferEncoding = response.getHeader("Transfer-Encoding").trim();
+			if (transferEncoding != null && transferEncoding.equals("chunked")) {
+				String chunkSizeOctal = responseString.substring(
+						lineStartIndex, lineEndIndex);
+				if (chunkSizeOctal.equals("0")) {
+					// last chunk
+					// close the channel and cancel selection key
+				}
+				responseBody = responseString.substring(lineEndIndex + 2);
+				int chunkSizeDecimal = Integer.parseInt(chunkSizeOctal, 16);
+				// FIXME: what if not all bytes received as per chunkSize
+			} else {
+				responseBody = responseString.substring(lineEndIndex + 2);
+			}
+
+			File responseOutFile = response.getOutFile();
+			if (responseOutFile == null) {
 
 				URL urlObj = null;
 				urlObj = new URL(url);
@@ -103,7 +153,7 @@ public class ResponseHandler implements Runnable {
 				if (!directory.isDirectory()) {
 					directory.mkdir();
 				}
-				responseFile = new File(directory.getAbsolutePath() + "/"
+				File responseFile = new File(directory.getAbsolutePath() + "/"
 						+ getCounter());
 				if (responseFile.createNewFile()
 						&& !responseBody.trim().equals("")) {
@@ -112,11 +162,16 @@ public class ResponseHandler implements Runnable {
 					writer.flush();
 					writer.close();
 				}
-				responseOutFile.put(url, responseFile);
+				response.setOutFile(responseFile);
+			} else {
+				if (!responseBody.trim().equals("")) {
+					FileWriter writer = new FileWriter(responseOutFile, true);
+					writer.write(responseBody);
+					writer.flush();
+					writer.close();
+				}
+
 			}
-			FileWriter writer = new FileWriter(responseFile, true);
-			writer.write(responseString);
-			
 
 		} catch (MalformedURLException e) {
 			LOGGER.error(e.getMessage());
@@ -124,14 +179,19 @@ public class ResponseHandler implements Runnable {
 			LOGGER.error(e.getMessage());
 		}
 
-		//LOGGER.info("DOWNLOADED :" + url + " " + response.indexOf("200 OK"));
+		// LOGGER.info("DOWNLOADED :" + url + " " + response.indexOf("200 OK"));
 	}
 
-	public void handle(String url, String responseString) {
-		LOGGER.debug("adding response to queue");
+	private void read(SelectionKey selectionKey) {
+
+		
+		
+	}
+
+	public void handle(SelectionKey selectionKey) {
+		LOGGER.debug("adding ready ready selection key into queue");
 		synchronized (mutex) {
-			responseData.put(url, responseString);
-			responseQueue.add(url);
+			responseQueue.add(selectionKey);
 			mutex.notify();
 		}
 		LOGGER.debug("waking up thread to process");

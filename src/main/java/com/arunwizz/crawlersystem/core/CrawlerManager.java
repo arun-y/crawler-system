@@ -11,17 +11,19 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
-import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.nio.client.DefaultHttpAsyncClient;
+import org.apache.http.nio.client.HttpAsyncClient;
+import org.apache.http.params.CoreConnectionPNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import sun.util.logging.resources.logging;
-
-import com.arunwizz.crawlersystem.network.tcp.NonBlockingNetworkFetcher;
+import com.arunwizz.crawlersystem.network.http.client.response.HTTPResponseHandler;
 import com.arunwizz.crawlersystem.statistics.Statistician;
 
 public class CrawlerManager implements Runnable {
@@ -31,20 +33,26 @@ public class CrawlerManager implements Runnable {
 
 	private Object mutex = new Object();
 	private PriorityQueue<RequestMessage> requestMessageQueue;
-	private NonBlockingNetworkFetcher nonBlockingNetworkFetcher;
+	private HttpAsyncClient httpclient = new DefaultHttpAsyncClient();
 
 	private CallBackClass callBackClass = new CallBackClass();
 	private DelayCallBackQueue<HostDelayedEntry> waitQueue = new DelayCallBackQueue<HostDelayedEntry>(
 			callBackClass);
 	private PriorityQueue<HostReadyEntry> readyQueue = new PriorityQueue<HostReadyEntry>();
 
-	public CrawlerManager(NonBlockingNetworkFetcher nonBlockingNetworkFetcher)
+	public CrawlerManager()
 			throws IOException {
 		this.requestMessageQueue = new PriorityQueue<RequestMessage>();
-		this.nonBlockingNetworkFetcher = nonBlockingNetworkFetcher;
 		Thread delayCallBackQueueThread = new Thread(waitQueue,
 				"Delay Callback Queue Thread");
 		delayCallBackQueueThread.start();
+		
+        httpclient.getParams()
+        .setIntParameter(CoreConnectionPNames.SO_TIMEOUT, 5000)
+        .setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 5000)
+        .setIntParameter(CoreConnectionPNames.SOCKET_BUFFER_SIZE, 8 * 1024)
+        .setBooleanParameter(CoreConnectionPNames.TCP_NODELAY, true);		
+		httpclient.start();
 
 	}
 
@@ -260,7 +268,10 @@ public class CrawlerManager implements Runnable {
 							.poll();
 					if (urlObject != null) {
 						// download
-						nonBlockingNetworkFetcher.get(urlObject);
+						HttpGet httpGet = new HttpGet(urlObject.toURI());
+						httpGet.setHeader("User-Agent", "CanopusBot/0.1 (Ubuntu 11.10; Linux x86_64)");
+						httpclient.execute(httpGet, new HTTPResponseHandler(httpGet));
+						httpGet.setHeader("Host", urlObject.getHost());
 						crawlCount++;
 						// upon coming back from download, put the host in wait
 						// thread

@@ -68,8 +68,13 @@ public class NonBlockingNetworkFetcher implements Runnable {
 			try {
 				// Wait for an event
 				LOGGER.debug("waiting for event on selector");
-				int numOfKeysReady = selector.select();
-				LOGGER.info(numOfKeysReady + " ready for processing");
+				int numOfKeysChanged = selector.select();
+				LOGGER.info(numOfKeysChanged + " ready for processing");
+				if (numOfKeysChanged == 0) {
+					//no modified selection key, however some active selection key is still available
+					Thread.sleep(1000);
+//					continue;
+				}
 				// Get list of selection keys with pending events
 				for (SelectionKey selectionKey : selector.selectedKeys()) {
 					processSelectionKey(selectionKey);
@@ -77,6 +82,9 @@ public class NonBlockingNetworkFetcher implements Runnable {
 				// check if more request in queue
 				checkForIncomingRequest();
 			} catch (IOException e) {
+				LOGGER.error(e.getMessage());
+				continue;
+			} catch (InterruptedException e) {
 				LOGGER.error(e.getMessage());
 				continue;
 			}
@@ -204,8 +212,8 @@ public class NonBlockingNetworkFetcher implements Runnable {
 			// FIXME: this seems not working, selector is still returning this
 			// channel for
 			// writing
-			selectionKey.interestOps(SelectionKey.OP_READ);
 
+			selectionKey.interestOps(SelectionKey.OP_READ);
 		} catch (IOException e) {
 			LOGGER.error(e.getMessage());
 		}
@@ -213,30 +221,35 @@ public class NonBlockingNetworkFetcher implements Runnable {
 
 	private ByteBuffer buf = ByteBuffer.allocateDirect(BUFFER_SIZE);
 
+	int counter = 0;
 	public void readChannel(SelectionKey selectionKey) {
 
+		counter++;
 		SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
 		try {
 			// Clear the buffer and read bytes from socket
 			buf.clear();
-			String responseString = null;
 			while (socketChannel.read(buf) > 0) {
 				// To read the bytes, flip the buffer
 				buf.flip();
-				//responseStorage.get(selectionKey).append(decoder.decode(buf));
-				responseString = decoder.decode(buf).toString();
+				responseStorage.get(selectionKey).append(decoder.decode(buf));
 				buf.clear();
 			}
-			// reading completed
-			//socketChannel.close();
-			//selectionKey.cancel();
+			
 			LOGGER.debug("Invoking response handler "
 					+ ResponseHandler.class.getName()
 					+ " to take handle response received");
-			responseHandler.handle(selectionKey.attachment().toString(),
-					responseString);
+			responseHandler.handle(
+					selectionKey);
+	
+			
+			LOGGER.debug("entering readChannel: " + counter);
+			
+			//See its non blocking mode, read will immediately return with what ever availble 
+			//at socket buffer, so at HTTPResponse layer we need to wait till we have read bytes read as 
+			//per Content-size or chunk with 0 found. so pass the selection key to Response handler.
+
 			LOGGER.debug("Removing this response string from local storage");
-			//responseStorage.remove(selectionKey);
 
 		} catch (IOException e) {
 			// Connection may have been closed
