@@ -15,7 +15,6 @@ import java.util.concurrent.Delayed;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.http.HttpRequest;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.nio.client.DefaultHttpAsyncClient;
 import org.apache.http.nio.client.HttpAsyncClient;
