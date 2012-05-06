@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Date;
 import java.util.HashMap;
@@ -28,7 +29,7 @@ public class CrawlerManager implements Runnable {
 			.getLogger(CrawlerSystem.class);
 
 	private Object mutex = new Object();
-	
+
 	private PriorityQueue<CrawlingRequestMessage> requestMessageQueue;
 	private HttpAsyncClient httpclient = new DefaultHttpAsyncClient();
 
@@ -109,121 +110,128 @@ public class CrawlerManager implements Runnable {
 	// ////////////////////////////////////////////////////////////////////////////////////
 
 	private void handleMessage(CrawlingRequestMessage message) {
+
 		try {
-			// TODO: update/log message received
-			String filename = message.getContentLocation();
-			BufferedReader reader = new BufferedReader(new FileReader(new File(
-					filename)));
-			String url = null;
-			long requestNumber = 0;
-			// Phase 1:
-			while ((url = reader.readLine()) != null) {
-				URL urlObject = null;
-				try {
-					urlObject = new URL(url);
-				} catch (MalformedURLException mue) {
-					LOGGER.error(mue.getMessage());
-					continue;
-				}
-
-				if (isRobotsPass(urlObject)) {
-					// TODO: update robots pass
-					String hostname = urlObject.getHost();
-
-					try {
-						// check if this host entry already exists, if not
-						// create it
-						if (hostDictionary.containsKey(hostname)) {
-							// add the url into host queue
-							hostDictionary.get(hostname).put(urlObject);
-						} else {
-							// new host found, create a new LinkedBlockingQueue
-							hostDictionary.put(hostname,
-									new LinkedBlockingQueue<URL>());
-							hostDictionary.get(hostname).put(urlObject);
-							// mark this host as ready
-							readyQueue.add(new HostReadyEntry(hostname,
-									requestNumber++));
-						}
-					} catch (InterruptedException e) {
-						LOGGER.error(e.getMessage());
-						// TODO: log this url into status table
-					}
-
-				} else {
-					LOGGER.debug("Robots check failed, ignoring url" + url);
-					continue;
-				}
-			}
-
-			int crawlCount = 0;
-			// Phase 2:
-			do {
-				// start polling ready thread and send url from host queue for
-				HostReadyEntry hostReadyEntry = null;
-				while ((hostReadyEntry = readyQueue.poll()) != null) {
-					URL urlObject = hostDictionary.get(
-							hostReadyEntry.getHostname()).poll();
-					if (urlObject != null) {
-						// download
-						HttpGet httpGet = new HttpGet(urlObject.toURI());
-						httpGet.setHeader("User-Agent",
-								"CanopusBot/0.1 (Ubuntu 11.10; Linux x86_64)");
-						httpclient.execute(httpGet, new HTTPResponseHandler(
-								httpGet));
-						httpGet.setHeader("Host", urlObject.getHost());
-						crawlCount++;
-						// upon coming back from download, put the host in wait
-						// thread
-						waitQueue
-								.put(new HostDelayedEntry(hostReadyEntry, 2000));
-						Statistician.hostWaitQueueEnter(
-								hostReadyEntry.getHostname(),
-								new Date().getTime());
-					} else {
-						// all urls belonging to this host is done
-						// if host is empty delete, delete host entry from host
-						// dictionary,
-						hostDictionary.remove(hostReadyEntry.getHostname());
-						// FIXME: can dictionary be weak hashmap
-						// if host dictionary is empty, return
-						if (hostDictionary.isEmpty()) {
-							// nothing to crawl, all done
-							break;
-						}
-					}
-				}
-
-				if (hostDictionary.isEmpty()) {
-					LOGGER.info("Nothing to crawl all done");
-					LOGGER.info("Total " + crawlCount + " items crawled");
-					LOGGER.info("Wait queue Statistics");
-					HashMap<String, Long> hostWaitQueueStatistics = Statistician
-							.getHostWaitQueueStatistics();
-					for (Entry<String, Long> hostEntry : hostWaitQueueStatistics
-							.entrySet()) {
-						LOGGER.info(hostEntry.getKey() + ":"
-								+ hostEntry.getValue());
-					}
-					break;
-				}
-
-				try {
-					LOGGER.trace("Time to wait on ready queue, till something comes in");
-					synchronized (readyQueue) {
-						readyQueue.wait(10000);
-						LOGGER.trace("Got up to check, if something in ready queue");
-					}
-				} catch (InterruptedException e) {
-					LOGGER.debug("Inturrepted!! " + e.getMessage());
-				}
-
-			} while (true);
-
+			//Phase 1:
+			handleMessagePhase1(message.getContentLocation());
+			//Phase 2:
+			handleMessagePhase2();
 		} catch (Exception e) {
 			LOGGER.error("Error handling message " + message);
 			LOGGER.error(e.getMessage());
 		}
+	}
+
+	private void handleMessagePhase1(final String filename) throws IOException {
+
+		// TODO: update/log message received
+		BufferedReader reader = new BufferedReader(new FileReader(new File(
+				filename)));
+		String url = null;
+		long requestNumber = 0;
+		// Phase 1:
+		while ((url = reader.readLine()) != null) {
+			URL urlObject = null;
+			try {
+				urlObject = new URL(url);
+			} catch (MalformedURLException mue) {
+				LOGGER.error(mue.getMessage());
+				continue;
+			}
+
+			if (isRobotsPass(urlObject)) {
+				// TODO: update robots pass
+				String hostname = urlObject.getHost();
+
+				try {
+					// check if this host entry already exists, if not
+					// create it
+					if (hostDictionary.containsKey(hostname)) {
+						// add the url into host queue
+						hostDictionary.get(hostname).put(urlObject);
+					} else {
+						// new host found, create a new LinkedBlockingQueue
+						hostDictionary.put(hostname,
+								new LinkedBlockingQueue<URL>());
+						hostDictionary.get(hostname).put(urlObject);
+						// mark this host as ready
+						readyQueue.add(new HostReadyEntry(hostname,
+								requestNumber++));
+					}
+				} catch (InterruptedException e) {
+					LOGGER.error(e.getMessage());
+					// TODO: log this url into status table
+				}
+
+			} else {
+				LOGGER.debug("Robots check failed, ignoring url" + url);
+				continue;
+			}
+		}
+
+	}
+
+	private void handleMessagePhase2() throws URISyntaxException {
+		int crawlCount = 0;
+		// Phase 2:
+		do {
+			// start polling ready thread and send url from host queue for
+			HostReadyEntry hostReadyEntry = null;
+			while ((hostReadyEntry = readyQueue.poll()) != null) {
+				URL urlObject = hostDictionary
+						.get(hostReadyEntry.getHostname()).poll();
+				if (urlObject != null) {
+					// download
+					HttpGet httpGet = new HttpGet(urlObject.toURI());
+					httpGet.setHeader("User-Agent",
+							"CanopusBot/0.1 (Ubuntu 11.10; Linux x86_64)");
+					httpclient.execute(httpGet,
+							new HTTPResponseHandler(httpGet));
+					httpGet.setHeader("Host", urlObject.getHost());
+					crawlCount++;
+					// upon coming back from download, put the host in wait
+					// thread
+					waitQueue.put(new HostDelayedEntry(hostReadyEntry, 2000));
+					Statistician.hostWaitQueueEnter(
+							hostReadyEntry.getHostname(), new Date().getTime());
+				} else {
+					// all urls belonging to this host is done
+					// if host is empty delete, delete host entry from host
+					// dictionary,
+					hostDictionary.remove(hostReadyEntry.getHostname());
+					// FIXME: can dictionary be weak hashmap
+					// if host dictionary is empty, return
+					if (hostDictionary.isEmpty()) {
+						// nothing to crawl, all done
+						break;
+					}
+				}
+			}
+
+			if (hostDictionary.isEmpty()) {
+				LOGGER.info("Nothing to crawl all done");
+				LOGGER.info("Total " + crawlCount + " items crawled");
+				LOGGER.info("Wait queue Statistics");
+				HashMap<String, Long> hostWaitQueueStatistics = Statistician
+						.getHostWaitQueueStatistics();
+				for (Entry<String, Long> hostEntry : hostWaitQueueStatistics
+						.entrySet()) {
+					LOGGER.info(hostEntry.getKey() + ":" + hostEntry.getValue());
+				}
+				break;
+			}
+
+			try {
+				LOGGER.trace("Time to wait on ready queue, till something comes in");
+				synchronized (readyQueue) {
+					readyQueue.wait(10000);
+					LOGGER.trace("Got up to check, if something in ready queue");
+				}
+			} catch (InterruptedException e) {
+				LOGGER.debug("Inturrepted!! " + e.getMessage());
+			}
+
+		} while (true);
 	}
 
 	private boolean isRobotsPass(URL url) {
