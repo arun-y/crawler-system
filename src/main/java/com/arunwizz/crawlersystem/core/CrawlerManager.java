@@ -12,9 +12,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.nio.client.DefaultHttpAsyncClient;
 import org.apache.http.nio.client.HttpAsyncClient;
@@ -23,7 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.arunwizz.crawlersystem.network.http.client.response.HTTPResponseHandler;
-import com.arunwizz.crawlersystem.statistics.Statistician;
+import com.arunwizz.crawlersystem.statistics.Statistician;;
 
 public class CrawlerManager implements Runnable {
 
