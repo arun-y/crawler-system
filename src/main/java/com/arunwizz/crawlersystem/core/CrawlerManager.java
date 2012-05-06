@@ -11,12 +11,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
-import java.util.concurrent.Delayed;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
-import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.nio.client.DefaultHttpAsyncClient;
 import org.apache.http.nio.client.HttpAsyncClient;
@@ -25,7 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.arunwizz.crawlersystem.network.http.client.response.HTTPResponseHandler;
-import com.arunwizz.crawlersystem.statistics.Statistician;;
+import com.arunwizz.crawlersystem.statistics.Statistician;
 
 public class CrawlerManager implements Runnable {
 
@@ -33,26 +29,29 @@ public class CrawlerManager implements Runnable {
 			.getLogger(CrawlerSystem.class);
 
 	private Object mutex = new Object();
+	
 	private PriorityQueue<RequestMessage> requestMessageQueue;
 	private HttpAsyncClient httpclient = new DefaultHttpAsyncClient();
 
-	private CallBackClass callBackClass = new CallBackClass();
-	private DelayCallBackQueue<HostDelayedEntry> waitQueue = new DelayCallBackQueue<HostDelayedEntry>(
-			callBackClass);
 	private PriorityQueue<HostReadyEntry> readyQueue = new PriorityQueue<HostReadyEntry>();
+	private CallBackClass callBackClass = new CallBackClass(readyQueue);
 
-	public CrawlerManager()
-			throws IOException {
+	private DelayCallBackQueue<HostDelayedEntry, HostReadyEntry> waitQueue = new DelayCallBackQueue<HostDelayedEntry, HostReadyEntry>(
+			callBackClass);
+
+	public CrawlerManager() throws IOException {
 		this.requestMessageQueue = new PriorityQueue<RequestMessage>();
 		Thread delayCallBackQueueThread = new Thread(waitQueue,
 				"Delay Callback Queue Thread");
 		delayCallBackQueueThread.start();
-		
-        httpclient.getParams()
-        .setIntParameter(CoreConnectionPNames.SO_TIMEOUT, 5000)
-        .setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 5000)
-        .setIntParameter(CoreConnectionPNames.SOCKET_BUFFER_SIZE, 8 * 1024)
-        .setBooleanParameter(CoreConnectionPNames.TCP_NODELAY, true);		
+
+		httpclient
+				.getParams()
+				.setIntParameter(CoreConnectionPNames.SO_TIMEOUT, 5000)
+				.setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 5000)
+				.setIntParameter(CoreConnectionPNames.SOCKET_BUFFER_SIZE,
+						8 * 1024)
+				.setBooleanParameter(CoreConnectionPNames.TCP_NODELAY, true);
 		httpclient.start();
 
 	}
@@ -105,107 +104,6 @@ public class CrawlerManager implements Runnable {
 	 * dictionary of current hosts being managed by crawler manager
 	 */
 	private Map<String, LinkedBlockingQueue<URL>> hostDictionary = new HashMap<String, LinkedBlockingQueue<URL>>();
-
-	/**
-	 * Entry for ready priority queue, entries are ordered by request number
-	 * 
-	 * @author aruny
-	 * 
-	 */
-	private class HostReadyEntry implements Comparable<HostReadyEntry> {
-
-		private String hostname;
-		private long requestNumber;
-
-		public HostReadyEntry(String hostname, long requestNumber) {
-			this.hostname = hostname;
-			this.requestNumber = requestNumber;
-		}
-
-		@Override
-		public int compareTo(HostReadyEntry o) {
-			if (requestNumber < o.requestNumber) {
-				return -1;
-			} else if (requestNumber > o.requestNumber) {
-				return +1;
-			} else {
-				return 0;
-			}
-		}
-
-	}
-
-	/**
-	 * Entry for wait queue, entries are ordered by remaining delay time
-	 * 
-	 * @author aruny
-	 * 
-	 */
-	private class HostDelayedEntry implements Delayed {
-
-		private HostReadyEntry hostReadyEntry;
-		private long delayTime;
-		private long creationTime;
-
-		public HostDelayedEntry(HostReadyEntry hostReadyEntry, long delayTime) {
-			this.hostReadyEntry = hostReadyEntry;
-			this.delayTime = delayTime;
-			this.creationTime = new Date().getTime();
-		}
-
-		@Override
-		public int compareTo(Delayed o) {
-			if (o instanceof HostDelayedEntry) {
-
-				if (delayTime < ((HostDelayedEntry) o).delayTime) {
-					return -1;
-				} else if (delayTime > ((HostDelayedEntry) o).delayTime) {
-					return +1;
-				} else {
-					return 0;
-				}
-			} else {
-				throw new ClassCastException();
-			}
-		}
-
-		@Override
-		public long getDelay(TimeUnit unit) {
-
-			long delay = delayTime - (new Date().getTime() - creationTime);
-
-			switch (unit) {
-			case DAYS:
-				return delay / (24 * 60 * 60 * 1000);
-			case HOURS:
-				return delay / (60 * 60 * 1000);
-			case MINUTES:
-				return delay / (60 * 1000);
-			case SECONDS:
-				return delay / (1000);
-			case MICROSECONDS:
-				return delay * 10 ^ 3;
-			case NANOSECONDS:
-				return delay * 10 ^ 6;
-			default:
-				return delay;
-			}
-		}
-
-	}
-
-	private class CallBackClass implements ICallBackClass<HostDelayedEntry> {
-
-		@Override
-		public void callBack(HostDelayedEntry hostDelayedEntry) {
-			Statistician.hostWaitQueueExit(hostDelayedEntry.hostReadyEntry.hostname, new Date().getTime());
-			synchronized (readyQueue) {
-				readyQueue.add(hostDelayedEntry.hostReadyEntry);
-				readyQueue.notify();
-			}
-		}
-
-	}
 
 	// ////////////////////////////////////////////////////////////////////////////////////
 	// ////////////////////////////////////////////////////////////////////////////////////
@@ -265,25 +163,29 @@ public class CrawlerManager implements Runnable {
 				// start polling ready thread and send url from host queue for
 				HostReadyEntry hostReadyEntry = null;
 				while ((hostReadyEntry = readyQueue.poll()) != null) {
-					URL urlObject = hostDictionary.get(hostReadyEntry.hostname)
-							.poll();
+					URL urlObject = hostDictionary.get(
+							hostReadyEntry.getHostname()).poll();
 					if (urlObject != null) {
 						// download
 						HttpGet httpGet = new HttpGet(urlObject.toURI());
-						httpGet.setHeader("User-Agent", "CanopusBot/0.1 (Ubuntu 11.10; Linux x86_64)");
-						httpclient.execute(httpGet, new HTTPResponseHandler(httpGet));
+						httpGet.setHeader("User-Agent",
+								"CanopusBot/0.1 (Ubuntu 11.10; Linux x86_64)");
+						httpclient.execute(httpGet, new HTTPResponseHandler(
+								httpGet));
 						httpGet.setHeader("Host", urlObject.getHost());
 						crawlCount++;
 						// upon coming back from download, put the host in wait
 						// thread
 						waitQueue
 								.put(new HostDelayedEntry(hostReadyEntry, 2000));
-						Statistician.hostWaitQueueEnter(hostReadyEntry.hostname, new Date().getTime());
+						Statistician.hostWaitQueueEnter(
+								hostReadyEntry.getHostname(),
+								new Date().getTime());
 					} else {
 						// all urls belonging to this host is done
 						// if host is empty delete, delete host entry from host
 						// dictionary,
-						hostDictionary.remove(hostReadyEntry.hostname);
+						hostDictionary.remove(hostReadyEntry.getHostname());
 						// FIXME: can dictionary be weak hashmap
 						// if host dictionary is empty, return
 						if (hostDictionary.isEmpty()) {
@@ -292,18 +194,21 @@ public class CrawlerManager implements Runnable {
 						}
 					}
 				}
-				
+
 				if (hostDictionary.isEmpty()) {
 					LOGGER.info("Nothing to crawl all done");
 					LOGGER.info("Total " + crawlCount + " items crawled");
 					LOGGER.info("Wait queue Statistics");
-					HashMap<String, Long> hostWaitQueueStatistics = Statistician.getHostWaitQueueStatistics();
-					for (Entry<String, Long> hostEntry: hostWaitQueueStatistics.entrySet()) {
-						LOGGER.info(hostEntry.getKey() + ":" + hostEntry.getValue());
+					HashMap<String, Long> hostWaitQueueStatistics = Statistician
+							.getHostWaitQueueStatistics();
+					for (Entry<String, Long> hostEntry : hostWaitQueueStatistics
+							.entrySet()) {
+						LOGGER.info(hostEntry.getKey() + ":"
+								+ hostEntry.getValue());
 					}
 					break;
 				}
-				
+
 				try {
 					LOGGER.trace("Time to wait on ready queue, till something comes in");
 					synchronized (readyQueue) {

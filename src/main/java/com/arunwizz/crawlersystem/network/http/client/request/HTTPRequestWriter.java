@@ -3,9 +3,8 @@ package com.arunwizz.crawlersystem.network.http.client.request;
 import java.net.MalformedURLException;
 import java.net.URL;
 
-import com.arunwizz.crawlersystem.network.tcp.RequestWriter;
 
-public class HTTPRequestWriter implements RequestWriter{
+public class HTTPRequestWriter implements IRequestWriter{
 
 	private static final String CRLF = "\r\n";
 	

@@ -6,16 +6,16 @@ import java.util.concurrent.Delayed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DelayCallBackQueue<T extends Delayed> implements Runnable {
+public class DelayCallBackQueue<T extends Delayed, U> implements Runnable {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(DelayCallBackQueue.class);
 	
 	private Object mutex = new Object(); 
 	
 	private DelayQueue<T> delayQueue;
-	private ICallBackClass<T> callBackClass;
+	private ICallBackClass<T, U> callBackClass;
 	
-	public DelayCallBackQueue(ICallBackClass<T> callBackClass) {
+	public DelayCallBackQueue(ICallBackClass<T, U> callBackClass) {
 		this.delayQueue = new DelayQueue<T>();
 		this.callBackClass = callBackClass;
 	}
@@ -28,7 +28,6 @@ public class DelayCallBackQueue<T extends Delayed> implements Runnable {
 	}
 	
 	public void run() {
-		
 		while (true) {
 			T delayedObj = delayQueue.poll(); 
 			if (delayedObj != null) {
@@ -39,12 +38,10 @@ public class DelayCallBackQueue<T extends Delayed> implements Runnable {
 						mutex.wait(100);
 					}
 				} catch (InterruptedException e) {
-					System.err.println(e.getMessage());
+					LOGGER.error(e.getMessage());
 				}
 			}
 		}
-		
 	}
-	
 
 }

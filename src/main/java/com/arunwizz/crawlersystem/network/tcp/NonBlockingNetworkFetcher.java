@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.arunwizz.crawlersystem.network.http.client.request.HTTPRequestWriter;
+import com.arunwizz.crawlersystem.network.http.client.request.IRequestWriter;
 import com.arunwizz.crawlersystem.network.http.client.response.ResponseHandler;
 import com.arunwizz.crawlersystem.statistics.NetworkStatistics;
 import com.arunwizz.crawlersystem.statistics.Statistician;
@@ -34,7 +35,7 @@ public class NonBlockingNetworkFetcher implements Runnable {
 	public static CharsetDecoder decoder = charset.newDecoder();
 
 	private ResponseHandler responseHandler = null;
-	private RequestWriter requestWriter = null;
+	private IRequestWriter requestWriter = null;
 
 	// Create a selector and register two socket channels
 	private Selector selector = null;
