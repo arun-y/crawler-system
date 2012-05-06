@@ -5,8 +5,7 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.arunwizz.crawlersystem.network.http.client.response.ResponseHandler;
-import com.arunwizz.crawlersystem.requestfilewatcher.FrontierWatcher;
+import com.arunwizz.crawlersystem.frontierwatcher.FrontierWatcher;
 
 public class CrawlerSystem {
 	
@@ -20,8 +19,6 @@ public class CrawlerSystem {
 			LOGGER.error("Usage: CrawlerSystem <path-of-frontier>");
 			System.exit(1);
 		}
-		ResponseHandler responseHandler = new ResponseHandler();
-		Thread responseHandlerThread = new Thread(responseHandler);
 		
 		LOGGER.info("instantiating crawler manager");
 		CrawlerManager crawlerManager = new CrawlerManager();
@@ -30,8 +27,6 @@ public class CrawlerSystem {
 		LOGGER.info("instantiating frontier watcher");
 		Thread frontierWatcherThread = new Thread(new FrontierWatcher(argv[0], crawlerManager), "Frontier Watcher Thread");
 		
-		LOGGER.info("Starting response handler");
-		responseHandlerThread.start();
 		LOGGER.info("Starting Crawler manager thread");
 		crawlerManagerThread.start();
 		LOGGER.info("Starting frontier watcher thread");

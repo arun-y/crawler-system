@@ -20,7 +20,6 @@ import org.apache.http.params.CoreConnectionPNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.arunwizz.crawlersystem.network.http.client.response.HTTPResponseHandler;
 import com.arunwizz.crawlersystem.statistics.Statistician;
 
 public class CrawlerManager implements Runnable {
@@ -30,7 +29,7 @@ public class CrawlerManager implements Runnable {
 
 	private Object mutex = new Object();
 	
-	private PriorityQueue<RequestMessage> requestMessageQueue;
+	private PriorityQueue<CrawlingRequestMessage> requestMessageQueue;
 	private HttpAsyncClient httpclient = new DefaultHttpAsyncClient();
 
 	private PriorityQueue<HostReadyEntry> readyQueue = new PriorityQueue<HostReadyEntry>();
@@ -40,7 +39,7 @@ public class CrawlerManager implements Runnable {
 			callBackClass);
 
 	public CrawlerManager() throws IOException {
-		this.requestMessageQueue = new PriorityQueue<RequestMessage>();
+		this.requestMessageQueue = new PriorityQueue<CrawlingRequestMessage>();
 		Thread delayCallBackQueueThread = new Thread(waitQueue,
 				"Delay Callback Queue Thread");
 		delayCallBackQueueThread.start();
@@ -56,7 +55,7 @@ public class CrawlerManager implements Runnable {
 
 	}
 
-	public void enqueRequest(RequestMessage requestMessage) {
+	public void enqueRequest(CrawlingRequestMessage requestMessage) {
 		LOGGER.debug("Received crawling request");
 		LOGGER.debug("Putting request into queue");
 		synchronized (mutex) {
@@ -69,7 +68,7 @@ public class CrawlerManager implements Runnable {
 	public void run() {
 
 		do {
-			RequestMessage message = requestMessageQueue.poll();
+			CrawlingRequestMessage message = requestMessageQueue.poll();
 			if (message != null) {
 				LOGGER.debug("Recevied message in queue");
 				// synchronous handle, for better through-put can spawn thread
@@ -109,7 +108,7 @@ public class CrawlerManager implements Runnable {
 	// ////////////////////////////////////////////////////////////////////////////////////
 	// ////////////////////////////////////////////////////////////////////////////////////
 
-	private void handleMessage(RequestMessage message) {
+	private void handleMessage(CrawlingRequestMessage message) {
 		try {
 			// TODO: update/log message received
 			String filename = message.getContentLocation();
