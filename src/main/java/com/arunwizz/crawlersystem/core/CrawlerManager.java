@@ -62,7 +62,7 @@ public class CrawlerManager implements Runnable {
 		synchronized (mutex) {
 			requestMessageQueue.add(requestMessage);
 			LOGGER.debug("Waking up waiting manager thread, if any");
-			mutex.notify();
+			mutex.notifyAll();
 		}
 	}
 
@@ -72,9 +72,10 @@ public class CrawlerManager implements Runnable {
 			CrawlingRequestMessage message = requestMessageQueue.poll();
 			if (message != null) {
 				LOGGER.debug("Recevied message in queue");
-				// synchronous handle, for better through-put can spawn thread
+				// TODO:synchronous handle, for better through-put can spawn
+				// thread
 				// then do it in separate class and make it therad safe
-				// currently handle method id not thread, as member variables
+				// currently handle method is not thread, as member variables
 				// are used
 				LOGGER.debug("Going to handle the message received");
 				handleMessage(message);
@@ -112,9 +113,9 @@ public class CrawlerManager implements Runnable {
 	private void handleMessage(CrawlingRequestMessage message) {
 
 		try {
-			//Phase 1:
+			// Phase 1:
 			handleMessagePhase1(message.getContentLocation());
-			//Phase 2:
+			// Phase 2:
 			handleMessagePhase2();
 		} catch (Exception e) {
 			LOGGER.error("Error handling message " + message);
@@ -128,7 +129,7 @@ public class CrawlerManager implements Runnable {
 		BufferedReader reader = new BufferedReader(new FileReader(new File(
 				filename)));
 		String url = null;
-		long requestNumber = 0;
+		long requestNumber = 0;//TODO: If multiple thread comes, each will have its own request number
 		// Phase 1:
 		while ((url = reader.readLine()) != null) {
 			URL urlObject = null;
@@ -144,19 +145,23 @@ public class CrawlerManager implements Runnable {
 				String hostname = urlObject.getHost();
 
 				try {
-					// check if this host entry already exists, if not
-					// create it
-					if (hostDictionary.containsKey(hostname)) {
-						// add the url into host queue
-						hostDictionary.get(hostname).put(urlObject);
-					} else {
-						// new host found, create a new LinkedBlockingQueue
-						hostDictionary.put(hostname,
-								new LinkedBlockingQueue<URL>());
-						hostDictionary.get(hostname).put(urlObject);
-						// mark this host as ready
-						readyQueue.add(new HostReadyEntry(hostname,
-								requestNumber++));
+					// This is a critical section, make it thread safe
+					synchronized (this) {
+
+						// check if this host entry already exists, if not
+						// create it
+						if (hostDictionary.containsKey(hostname)) {
+							// add the url into host queue
+							hostDictionary.get(hostname).put(urlObject);
+						} else {
+							// new host found, create a new LinkedBlockingQueue
+							hostDictionary.put(hostname,
+									new LinkedBlockingQueue<URL>());
+							hostDictionary.get(hostname).put(urlObject);
+							// mark this host as ready
+							readyQueue.add(new HostReadyEntry(hostname,
+									requestNumber++));
+						}
 					}
 				} catch (InterruptedException e) {
 					LOGGER.error(e.getMessage());
@@ -188,10 +193,14 @@ public class CrawlerManager implements Runnable {
 					httpclient.execute(httpGet,
 							new HTTPResponseHandler(httpGet));
 					httpGet.setHeader("Host", urlObject.getHost());
+					httpGet.setHeader("From", "arunwizz@gmail.com");
 					crawlCount++;
 					// upon coming back from download, put the host in wait
 					// thread
-					waitQueue.put(new HostDelayedEntry(hostReadyEntry, 2000));
+					synchronized (this) {
+						waitQueue
+								.put(new HostDelayedEntry(hostReadyEntry, 2000));
+					}
 					Statistician.hostWaitQueueEnter(
 							hostReadyEntry.getHostname(), new Date().getTime());
 				} else {

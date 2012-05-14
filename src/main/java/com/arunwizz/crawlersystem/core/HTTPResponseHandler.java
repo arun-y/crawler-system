@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
 
+	private static final String CRAWLED_HOSTS_PATH = "/data/crawler_system/crawled_hosts";
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(HTTPResponseHandler.class);
 
@@ -44,7 +45,7 @@ public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
 		String host = uri.getHost();
 		String path = uri.getPath();
 
-		File directory = new File("/data/crawler_system/" + host);
+		File directory = new File(CRAWLED_HOSTS_PATH + "/" +host);
 		if (!directory.isDirectory()) {
 			directory.mkdir();
 		}
