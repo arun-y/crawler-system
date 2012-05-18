@@ -12,13 +12,14 @@ import java.util.concurrent.TimeUnit;
  */
 class HostDelayedEntry implements Delayed {
 
-	private HostReadyEntry hostReadyEntry;
-	public HostReadyEntry getHostReadyEntry() {
-		return hostReadyEntry;
+	private String hostReady;
+
+	public String getHostReadyEntry() {
+		return hostReady;
 	}
 
-	public void setHostReadyEntry(HostReadyEntry hostReadyEntry) {
-		this.hostReadyEntry = hostReadyEntry;
+	public void setHostReadyEntry(String hostReadyEntry) {
+		this.hostReady = hostReadyEntry;
 	}
 
 	public long getDelayTime() {
@@ -40,8 +41,8 @@ class HostDelayedEntry implements Delayed {
 	private long delayTime;
 	private long creationTime;
 
-	public HostDelayedEntry(HostReadyEntry hostReadyEntry, long delayTime) {
-		this.hostReadyEntry = hostReadyEntry;
+	public HostDelayedEntry(String hostReadyEntry, long delayTime) {
+		this.hostReady = hostReadyEntry;
 		this.delayTime = delayTime;
 		this.creationTime = new Date().getTime();
 	}

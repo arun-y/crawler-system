@@ -29,7 +29,10 @@ public class DelayCallBackQueue<T extends Delayed, U> implements Runnable {
 	
 	public void run() {
 		while (true) {
-			T delayedObj = delayQueue.poll(); 
+			T delayedObj = null;
+			synchronized (mutex) {
+				delayedObj = delayQueue.poll(); 
+			}
 			if (delayedObj != null) {
 				callBackClass.callBack(delayedObj);
 			} else {

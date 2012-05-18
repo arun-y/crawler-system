@@ -5,20 +5,22 @@ import java.util.Queue;
 
 import com.arunwizz.crawlersystem.statistics.Statistician;
 
-class CallBackClass implements ICallBackClass<HostDelayedEntry, HostReadyEntry> {
+class CallBackClass implements ICallBackClass<HostDelayedEntry, String> {
 
-	private Queue<HostReadyEntry> readyQueue;
+	private Queue<String> readyQueue;
 
-	public CallBackClass(Queue<HostReadyEntry> readyQueue) {
+	public CallBackClass(Queue<String> readyQueue) {
 		this.readyQueue = readyQueue;
 	}
 
 	@Override
 	public void callBack(HostDelayedEntry hostDelayedEntry) {
-		Statistician.hostWaitQueueExit(hostDelayedEntry.getHostReadyEntry()
-				.getHostname(), new Date().getTime());
+		Statistician.hostWaitQueueExit(hostDelayedEntry.getHostReadyEntry(),
+				new Date().getTime());
 		synchronized (readyQueue) {
-			readyQueue.add(hostDelayedEntry.getHostReadyEntry());
+			if (!readyQueue.contains(hostDelayedEntry.getHostReadyEntry())) {
+				readyQueue.add(hostDelayedEntry.getHostReadyEntry());
+			}
 			readyQueue.notify();
 		}
 	}

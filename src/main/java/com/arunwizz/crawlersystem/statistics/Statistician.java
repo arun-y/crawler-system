@@ -1,12 +1,14 @@
 package com.arunwizz.crawlersystem.statistics;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 import com.arunwizz.crawlersystem.statistics.NetworkStatistics.Parameter;
 
 public class Statistician {
 
-	private static HashMap<String, NetworkStatistics> networkStatisticsTable = new HashMap<String, NetworkStatistics>();
+	private static Map<String, NetworkStatistics> networkStatisticsTable = Collections.synchronizedMap(new HashMap<String, NetworkStatistics>());
 	
 	public static synchronized void status(String url, String status) {
 		NetworkStatistics networkStatistics = null;
@@ -50,18 +52,18 @@ public class Statistician {
 		}
 	}
 	
-	private static HashMap<String, Long> hostWaitQueueStatistics = new HashMap<String, Long>();
+	private static Map<String, Long> hostWaitQueueStatistics = Collections.synchronizedMap(new HashMap<String, Long>());
 	
 	public static synchronized void hostWaitQueueEnter(String host, long enterTime) {
 		hostWaitQueueStatistics.put(host, enterTime);		
 	}
 
 	public static synchronized void hostWaitQueueExit(String host, long exitTime) {
-		long hostWaitTime = exitTime - hostWaitQueueStatistics.get(host);
+		final long hostWaitTime = exitTime - hostWaitQueueStatistics.get(host);
 		hostWaitQueueStatistics.put(host, hostWaitTime);
 	}
 
-	public static HashMap<String, Long> getHostWaitQueueStatistics() {
+	public static Map<String, Long> getHostWaitQueueStatistics() {
 		return hostWaitQueueStatistics;
 	}
 }

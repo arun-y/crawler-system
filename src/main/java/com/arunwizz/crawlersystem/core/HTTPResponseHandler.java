@@ -14,6 +14,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.concurrent.FutureCallback;
@@ -26,34 +27,25 @@ public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(HTTPResponseHandler.class);
 
+	private HttpHost httpHost;
 	private HttpRequest request;
 
-	public HTTPResponseHandler(HttpRequest request) {
+	public HTTPResponseHandler(HttpHost httpHost, HttpRequest request) {
+		this.httpHost = httpHost;
 		this.request = request;
 	}
 
 	public void completed(final HttpResponse response) {
-		LOGGER.info(request.getRequestLine() + "->" + response.getStatusLine());
-		URI uri = null;
-		try {
-			uri = new URI(request.getRequestLine().getUri());
-		} catch (URISyntaxException e1) {
-			LOGGER.error("Error creating URI for "
-					+ request.getRequestLine().getUri());
-			LOGGER.error(e1.getMessage());
-		}
-		String host = uri.getHost();
-		String path = uri.getPath();
-
-		File directory = new File(CRAWLED_HOSTS_PATH + "/" +host);
+		LOGGER.info("[" + httpHost.getHostName() + "] " + request.getRequestLine().getUri() + "->" + response.getStatusLine());
+		
+		File directory = new File(CRAWLED_HOSTS_PATH + "/" + httpHost.getHostName());
 		if (!directory.isDirectory()) {
 			directory.mkdir();
 		}
 
-		LOGGER.info(uri.getHost() + ":" + uri.getPath());
 		// create md5 hashes for both host and path
 
-		byte[] pathKeyDigest = getMD5EncodedDigest(path);
+		byte[] pathKeyDigest = getMD5EncodedDigest(request.getRequestLine().getUri());
 		
 		File responseFile = new File(directory.getAbsolutePath() + "/"
 				+ new String(pathKeyDigest));
@@ -86,11 +78,11 @@ public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
 		//TODO: based on error type, try put it back in delayed queue.
 		//may we also we need to track the status of each get quest into 
 		//B-Tree persistence storage
-		LOGGER.info(request.getRequestLine() + "->" + ex);
+		LOGGER.info("[" + httpHost + "]" + request.getRequestLine() + "->" + ex);
 	}
 
 	public void cancelled() {
-		LOGGER.info(request.getRequestLine() + " cancelled");
+		LOGGER.info("[" + httpHost + "]" + request.getRequestLine() + " cancelled");
 	}
 
 	private byte[] getMD5EncodedDigest(String message) {

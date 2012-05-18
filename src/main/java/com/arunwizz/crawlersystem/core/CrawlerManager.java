@@ -9,6 +9,7 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.slf4j.Logger;
@@ -31,10 +32,10 @@ public class CrawlerManager implements Runnable {
 
 	private PriorityQueue<CrawlingRequestMessage> requestMessageQueue;
 
-	private PriorityQueue<HostReadyEntry> readyQueue = new PriorityQueue<HostReadyEntry>();
+	private Queue<String> readyQueue = new LinkedBlockingQueue<String>();
 	private CallBackClass callBackClass = new CallBackClass(readyQueue);
 
-	private DelayCallBackQueue<HostDelayedEntry, HostReadyEntry> waitQueue = new DelayCallBackQueue<HostDelayedEntry, HostReadyEntry>(
+	private DelayCallBackQueue<HostDelayedEntry, String> waitQueue = new DelayCallBackQueue<HostDelayedEntry, String>(
 			callBackClass);
 
 	private CrawlingRequestMessageHandler crawlingRequestMessageHandler = null;
@@ -48,7 +49,7 @@ public class CrawlerManager implements Runnable {
 		crawlingRequestMessageHandler = new CrawlingRequestMessageHandler(
 				readyQueue, waitQueue, hostDictionary);
 		Thread crawlingRequestMessageHandlerThread = new Thread(
-				crawlingRequestMessageHandler);
+				crawlingRequestMessageHandler, "Request Message Handler Thread");
 		crawlingRequestMessageHandlerThread.setDaemon(true);
 		crawlingRequestMessageHandlerThread.start();
 
@@ -108,6 +109,7 @@ public class CrawlerManager implements Runnable {
 	// ////////////////////////////////////////////////////////////////////////////////////
 	// ////////////////////////////////////////////////////////////////////////////////////
 
+	// this method is not required to be thread safe
 	private void handleMessage(CrawlingRequestMessage message) {
 
 		try {
@@ -115,8 +117,6 @@ public class CrawlerManager implements Runnable {
 			BufferedReader reader = new BufferedReader(new FileReader(new File(
 					message.getContentLocation())));
 			String url = null;
-			long requestNumber = 0;// TODO:FIXME If multiple thread comes, each
-									// will have its own request number
 			while ((url = reader.readLine()) != null) {
 				URL urlObject = null;
 				try {
@@ -131,26 +131,22 @@ public class CrawlerManager implements Runnable {
 					String hostname = urlObject.getHost();
 
 					try {
-						// This is a critical section, make it thread safe
-						synchronized (hostDictionary) {
 
-							// check if this host entry already exists, if not
-							// create it
-							if (hostDictionary.containsKey(hostname)) {
-								// add the url into host queue
-								hostDictionary.get(hostname).put(urlObject);
-							} else {
-								// new host found, create a new
-								// LinkedBlockingQueue
-								hostDictionary.put(hostname,
-										new LinkedBlockingQueue<URL>());
-								hostDictionary.get(hostname).put(urlObject);
-								// mark this host as ready
-								synchronized (readyQueue) {
-									readyQueue.add(new HostReadyEntry(hostname,
-											requestNumber++));
-									readyQueue.notify();
-								}
+						// check if this host entry already exists, if not
+						// create it
+						if (!hostDictionary.containsKey(hostname)) {
+							// new host found, create a new
+							// LinkedBlockingQueue
+							hostDictionary.put(hostname,
+									new LinkedBlockingQueue<URL>());
+						}
+						// add the url into host queue
+						hostDictionary.get(hostname).put(urlObject);
+						// mark this host as ready
+						synchronized (readyQueue) {
+							if (!readyQueue.contains(hostname)) {
+								readyQueue.add(hostname);
+								readyQueue.notify();
 							}
 						}
 					} catch (InterruptedException e) {
