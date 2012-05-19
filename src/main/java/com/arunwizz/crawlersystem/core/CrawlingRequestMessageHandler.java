@@ -1,46 +1,20 @@
 package com.arunwizz.crawlersystem.core;
 
-import java.io.IOException;
-import java.io.InterruptedIOException;
 import java.net.URL;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.http.HttpHost;
-import org.apache.http.HttpRequestInterceptor;
-import org.apache.http.impl.DefaultConnectionReuseStrategy;
-import org.apache.http.impl.nio.DefaultHttpClientIODispatch;
 import org.apache.http.impl.nio.pool.BasicNIOConnPool;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicHttpRequest;
-import org.apache.http.nio.protocol.BasicAsyncRequestProducer;
-import org.apache.http.nio.protocol.BasicAsyncResponseConsumer;
-import org.apache.http.nio.protocol.HttpAsyncRequestExecutor;
-import org.apache.http.nio.protocol.HttpAsyncRequester;
-import org.apache.http.nio.reactor.ConnectingIOReactor;
-import org.apache.http.nio.reactor.IOEventDispatch;
 import org.apache.http.nio.reactor.IOReactorException;
-import org.apache.http.params.CoreConnectionPNames;
-import org.apache.http.params.CoreProtocolPNames;
-import org.apache.http.params.HttpParams;
-import org.apache.http.params.SyncBasicHttpParams;
-import org.apache.http.protocol.BasicHttpContext;
-import org.apache.http.protocol.HttpProcessor;
-import org.apache.http.protocol.ImmutableHttpProcessor;
-import org.apache.http.protocol.RequestConnControl;
-import org.apache.http.protocol.RequestContent;
-import org.apache.http.protocol.RequestExpectContinue;
-import org.apache.http.protocol.RequestTargetHost;
-import org.apache.http.protocol.RequestUserAgent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.arunwizz.crawlersystem.network.NetworkFetcher;
 import com.arunwizz.crawlersystem.statistics.Statistician;
 
 /**
@@ -57,13 +31,12 @@ public class CrawlingRequestMessageHandler implements Runnable {
 	private Queue<String> readyQueue;
 	private DelayCallBackQueue<HostDelayedEntry, String> waitQueue = null;
 	private Map<String, LinkedBlockingQueue<URL>> hostDictionary = null;
-	private HttpAsyncRequester requester = null;
 	private BasicNIOConnPool pool = null;
-	
-	private long requestCount = 0;
 
-	public CrawlingRequestMessageHandler(
-			Queue<String> readyQueue,
+	private long requestCount = 0;
+	private NetworkFetcher networkFetcher = null;
+
+	public CrawlingRequestMessageHandler(Queue<String> readyQueue,
 			DelayCallBackQueue<HostDelayedEntry, String> waitQueue,
 			Map<String, LinkedBlockingQueue<URL>> hostDictionary)
 			throws IOReactorException {
@@ -71,65 +44,17 @@ public class CrawlingRequestMessageHandler implements Runnable {
 		this.waitQueue = waitQueue;
 		this.hostDictionary = hostDictionary;
 
-		// HTTP parameters for the client
-		HttpParams params = new SyncBasicHttpParams();
-		params.setIntParameter(CoreConnectionPNames.SO_TIMEOUT, 5000)
-				.setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 500000)
-				.setIntParameter(CoreConnectionPNames.SOCKET_BUFFER_SIZE,
-						8 * 1024)
-				.setBooleanParameter(CoreConnectionPNames.TCP_NODELAY, true)
-				.setParameter(CoreProtocolPNames.USER_AGENT,
-						"CanopusBot/0.1 (Ubuntu 11.10; Linux x86_64)")
-				.setParameter("From", "arunwizz@gmail.com");
-
-		// Create HTTP protocol processing chain
-		HttpProcessor httpproc = new ImmutableHttpProcessor(
-				new HttpRequestInterceptor[] {
-						// Use standard client-side protocol interceptors
-						new RequestContent(), new RequestTargetHost(),
-						new RequestConnControl(), new RequestUserAgent(),
-						new RequestExpectContinue() });
-		// Create client-side HTTP protocol handler
-		HttpAsyncRequestExecutor protocolHandler = new HttpAsyncRequestExecutor();
-		// Create client-side I/O event dispatch
-		final IOEventDispatch ioEventDispatch = new DefaultHttpClientIODispatch(
-				protocolHandler, params);
-		// Create client-side I/O reactor
-		IOReactorConfig config = new IOReactorConfig();
-		config.setIoThreadCount(1);
-		final ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor(
-				config);
-		// Create HTTP connection pool
-		pool = new BasicNIOConnPool(ioReactor, params);
-		// Limit total number of connections to just two
-		pool.setDefaultMaxPerRoute(100);
-		pool.setMaxTotal(200);
-		// Run the I/O reactor in a separate thread
-		Thread t = new Thread(new Runnable() {
-
-			public void run() {
-				try {
-					// Ready to go!
-					ioReactor.execute(ioEventDispatch);
-				} catch (InterruptedIOException ex) {
-					LOGGER.error("Interrupted");
-				} catch (IOException e) {
-					LOGGER.error("I/O error: " + e.getMessage());
-				}
-				LOGGER.info("SocketIO Reactor Shutdown");
-			}
-
-		}, "Socket IO Reactor Thread");
-		// Start the client thread
-		t.start();
-		// Create HTTP requester
-		requester = new HttpAsyncRequester(httpproc,
-				new DefaultConnectionReuseStrategy(), params);
-
+		networkFetcher = new NetworkFetcher();
+		Thread networkFetcherTherad = new Thread(networkFetcher,
+				"Network Fetcher Thread");
+		networkFetcherTherad.setDaemon(true);
+		LOGGER.info("Starting Network Manager Thread");
+		networkFetcherTherad.start();
 	}
 
 	@Override
 	public void run() {
+		LOGGER.info("CrawlingRequestManager Therad started running");
 		do {
 			try {
 				// start polling ready thread and send url from host queue for
@@ -138,15 +63,16 @@ public class CrawlingRequestMessageHandler implements Runnable {
 					hostReadyEntry = readyQueue.poll();
 				}
 				if (hostReadyEntry != null) {
-					LOGGER.info("Found host " + hostReadyEntry + " in ready queue");
-					URL urlObject = hostDictionary.get(
-							hostReadyEntry).poll();
-					
-					LOGGER.info("**host queue size " + hostDictionary.get(
-							hostReadyEntry).size());
-					
+					LOGGER.info("Found host " + hostReadyEntry
+							+ " in ready queue");
+					URL urlObject = hostDictionary.get(hostReadyEntry).poll();
+
+					LOGGER.info(hostReadyEntry + " host queue size: "
+							+ hostDictionary.get(hostReadyEntry).size());
+
 					if (urlObject != null) {
-						LOGGER.info("Found path " + urlObject.getPath() + " on host " + hostReadyEntry);
+						LOGGER.info("Found path " + urlObject.getPath()
+								+ " on host " + hostReadyEntry);
 						// download
 						HttpHost httpHost = new HttpHost(urlObject.getHost(),
 								urlObject.getDefaultPort(),
@@ -157,20 +83,17 @@ public class CrawlingRequestMessageHandler implements Runnable {
 								urlObject.getPath());
 						LOGGER.info("Calling execute for " + request);
 						long exceuteStartTime = System.currentTimeMillis();
-						requester.execute(new BasicAsyncRequestProducer(
-								httpHost, request),
-								new BasicAsyncResponseConsumer(), pool,
-								new BasicHttpContext(),
+						networkFetcher.fetch(httpHost, request,
 								new HTTPResponseHandler(httpHost, request));
 						LOGGER.info("request sent count " + requestCount++);
-						LOGGER.info("Execute completed in " + (System.currentTimeMillis() - exceuteStartTime));
+						LOGGER.info("Execute completed in "
+								+ (System.currentTimeMillis() - exceuteStartTime));
 						// above execute will return immediately, put the host
 						// in wait
 						// queue
-						waitQueue.put(new HostDelayedEntry(hostReadyEntry,
-								5000));
-						Statistician.hostWaitQueueEnter(
-								hostReadyEntry,
+						waitQueue
+								.put(new HostDelayedEntry(hostReadyEntry, 5000));
+						Statistician.hostWaitQueueEnter(hostReadyEntry,
 								new Date().getTime());
 					} else {
 						LOGGER.trace("But nothing to crawl for host: "
