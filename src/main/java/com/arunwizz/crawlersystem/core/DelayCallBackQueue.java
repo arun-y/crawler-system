@@ -38,7 +38,8 @@ public class DelayCallBackQueue<T extends Delayed, U> implements Runnable {
 			} else {
 				try {
 					synchronized (mutex) {
-						mutex.wait(10000);
+						//minimum 1 sec. delay.  
+						mutex.wait(1000);
 					}
 				} catch (InterruptedException e) {
 					LOGGER.error(e.getMessage());

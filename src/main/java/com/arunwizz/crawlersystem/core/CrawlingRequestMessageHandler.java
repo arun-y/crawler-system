@@ -59,6 +59,8 @@ public class CrawlingRequestMessageHandler implements Runnable {
 	private Map<String, LinkedBlockingQueue<URL>> hostDictionary = null;
 	private HttpAsyncRequester requester = null;
 	private BasicNIOConnPool pool = null;
+	
+	private long requestCount = 0;
 
 	public CrawlingRequestMessageHandler(
 			Queue<String> readyQueue,
@@ -72,7 +74,7 @@ public class CrawlingRequestMessageHandler implements Runnable {
 		// HTTP parameters for the client
 		HttpParams params = new SyncBasicHttpParams();
 		params.setIntParameter(CoreConnectionPNames.SO_TIMEOUT, 5000)
-				.setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 5000)
+				.setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 500000)
 				.setIntParameter(CoreConnectionPNames.SOCKET_BUFFER_SIZE,
 						8 * 1024)
 				.setBooleanParameter(CoreConnectionPNames.TCP_NODELAY, true)
@@ -100,8 +102,8 @@ public class CrawlingRequestMessageHandler implements Runnable {
 		// Create HTTP connection pool
 		pool = new BasicNIOConnPool(ioReactor, params);
 		// Limit total number of connections to just two
-		pool.setDefaultMaxPerRoute(2);
-		pool.setMaxTotal(20);
+		pool.setDefaultMaxPerRoute(100);
+		pool.setMaxTotal(200);
 		// Run the I/O reactor in a separate thread
 		Thread t = new Thread(new Runnable() {
 
@@ -136,9 +138,15 @@ public class CrawlingRequestMessageHandler implements Runnable {
 					hostReadyEntry = readyQueue.poll();
 				}
 				if (hostReadyEntry != null) {
+					LOGGER.info("Found host " + hostReadyEntry + " in ready queue");
 					URL urlObject = hostDictionary.get(
 							hostReadyEntry).poll();
+					
+					LOGGER.info("**host queue size " + hostDictionary.get(
+							hostReadyEntry).size());
+					
 					if (urlObject != null) {
+						LOGGER.info("Found path " + urlObject.getPath() + " on host " + hostReadyEntry);
 						// download
 						HttpHost httpHost = new HttpHost(urlObject.getHost(),
 								urlObject.getDefaultPort(),
@@ -147,22 +155,25 @@ public class CrawlingRequestMessageHandler implements Runnable {
 
 						BasicHttpRequest request = new BasicHttpRequest("HEAD",
 								urlObject.getPath());
+						LOGGER.info("Calling execute for " + request);
+						long exceuteStartTime = System.currentTimeMillis();
 						requester.execute(new BasicAsyncRequestProducer(
 								httpHost, request),
 								new BasicAsyncResponseConsumer(), pool,
 								new BasicHttpContext(),
 								new HTTPResponseHandler(httpHost, request));
-
+						LOGGER.info("request sent count " + requestCount++);
+						LOGGER.info("Execute completed in " + (System.currentTimeMillis() - exceuteStartTime));
 						// above execute will return immediately, put the host
 						// in wait
 						// queue
 						waitQueue.put(new HostDelayedEntry(hostReadyEntry,
-								10000));
+								5000));
 						Statistician.hostWaitQueueEnter(
 								hostReadyEntry,
 								new Date().getTime());
 					} else {
-						LOGGER.trace("Nothing to crawl for host: "
+						LOGGER.trace("But nothing to crawl for host: "
 								+ hostReadyEntry);
 						// all urls belonging to this host is done
 						// if host is empty delete, delete host entry from host
@@ -177,15 +188,15 @@ public class CrawlingRequestMessageHandler implements Runnable {
 				} else {
 					LOGGER.trace("Time to wait on ready queue, till something comes in");
 					synchronized (readyQueue) {
-						readyQueue.wait(10000);
+						readyQueue.wait(1500);
 					}
-					LOGGER.info("Got up to check, if something in ready queue");
-					LOGGER.debug("Wait queue Statistics");
+					LOGGER.debug("Got up to check, if something in ready queue");
+					LOGGER.trace("Wait queue Statistics");
 					Map<String, Long> hostWaitQueueStatistics = Statistician
 							.getHostWaitQueueStatistics();
 					for (Entry<String, Long> hostEntry : hostWaitQueueStatistics
 							.entrySet()) {
-						LOGGER.debug(hostEntry.getKey() + ":"
+						LOGGER.trace(hostEntry.getKey() + ":"
 								+ hostEntry.getValue());
 					}
 				}

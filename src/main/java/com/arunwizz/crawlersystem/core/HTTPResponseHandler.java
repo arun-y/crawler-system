@@ -36,7 +36,7 @@ public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
 	}
 
 	public void completed(final HttpResponse response) {
-		LOGGER.info("[" + httpHost.getHostName() + "] " + request.getRequestLine().getUri() + "->" + response.getStatusLine());
+		LOGGER.info(response.getStatusLine() + " -> [" + httpHost.getHostName() + "] " + request.getRequestLine().getMethod() + " " + request.getRequestLine().getUri());
 		
 		File directory = new File(CRAWLED_HOSTS_PATH + "/" + httpHost.getHostName());
 		if (!directory.isDirectory()) {
