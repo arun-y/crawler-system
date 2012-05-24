@@ -82,7 +82,7 @@ public class NetworkFetcher implements Runnable {
 				if (url != null) {
 					LOGGER.debug("submitting requesting for " + url);
 					executor.submit(new LocalHttpClient(new HttpHost(url
-							.getHost()), new BasicHttpRequest("HEAD", url
+							.getHost()), new BasicHttpRequest("GET", url
 							.getPath()), requestHandlerMap.get(url)));
 
 				} else {
@@ -129,6 +129,7 @@ public class NetworkFetcher implements Runnable {
 		public void run() {
 			HttpResponse response = null;
 			try {
+				long st = System.currentTimeMillis();
 				response = client.execute(host, request);
 				if (response != null) {
 					httpResponseHandler.completed(response);
@@ -136,6 +137,7 @@ public class NetworkFetcher implements Runnable {
 					httpResponseHandler.failed(new Exception(
 							"Error getting new response"));
 				}
+				LOGGER.info(host + " fetched in " + (System.currentTimeMillis() - st) + " ms.");
 			} catch (ClientProtocolException e) {
 				LOGGER.error(e.getMessage());
 				httpResponseHandler.failed(e);
