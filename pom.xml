@@ -69,5 +69,12 @@
 			<version>2.4</version>
 		</dependency>
 
+		<!-- HTML cleaner and tidy -->
+		<dependency>
+			<groupId>net.sourceforge.htmlcleaner</groupId>
+			<artifactId>htmlcleaner</artifactId>
+			<version>2.2</version>
+		</dependency>
+
 	</dependencies>
 </project>

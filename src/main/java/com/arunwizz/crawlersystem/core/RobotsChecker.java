@@ -21,6 +21,7 @@ public class RobotsChecker {
 
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(RobotsChecker.class);
+	//TODO: define this as configuration/init properties
 	private static final String USER_AGENT = "CanopusBot/0.1 (Ubuntu 11.10; Linux x86_64)";
 	private HashMap<String, Set<String>> cache = null;
 

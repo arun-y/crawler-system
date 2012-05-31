@@ -15,6 +15,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.arunwizz.crawlersystem.core.exception.RobotsCheckerException;
+
 /**
  * Currently crawler manager runs as thread, in long term we can run it a
  * separate process which can communicate over tcp or http with frontier watcher
@@ -40,6 +42,8 @@ public class CrawlerManager implements Runnable {
 
 	private CrawlingRequestMessageHandler crawlingRequestMessageHandler = null;
 
+	private RobotsChecker robotsChecker = new RobotsChecker();
+	
 	public CrawlerManager() throws IOException {
 		this.requestMessageQueue = new PriorityQueue<CrawlingRequestMessage>();
 		Thread delayCallBackQueueThread = new Thread(waitQueue,
@@ -167,8 +171,8 @@ public class CrawlerManager implements Runnable {
 		}
 	}
 
-	private boolean isRobotsPass(URL url) {
-		return true;
+	private boolean isRobotsPass(URL url) throws RobotsCheckerException {
+		return robotsChecker.isPass(url);
 	}
 
 }
