@@ -31,7 +31,6 @@ public class CrawlingRequestMessageHandler implements Runnable {
 	private Queue<String> readyQueue;
 	private DelayCallBackQueue<HostDelayedEntry, String> waitQueue = null;
 	private Map<String, LinkedBlockingQueue<URL>> hostDictionary = null;
-	private BasicNIOConnPool pool = null;
 
 	private long requestCount = 0;
 	private NetworkFetcher networkFetcher = null;

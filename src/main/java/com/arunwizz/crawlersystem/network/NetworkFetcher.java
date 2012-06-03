@@ -135,7 +135,7 @@ public class NetworkFetcher implements Runnable {
 					httpResponseHandler.completed(response);
 				} else {
 					httpResponseHandler.failed(new Exception(
-							"Error getting new response"));
+							"Error getting response"));
 				}
 				LOGGER.info(host + " fetched in " + (System.currentTimeMillis() - st) + " ms.");
 			} catch (ClientProtocolException e) {
