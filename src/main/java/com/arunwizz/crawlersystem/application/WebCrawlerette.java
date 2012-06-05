@@ -1,5 +1,8 @@
 package com.arunwizz.crawlersystem.application;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * A WebCrawler Thread, to initiate the crawling request
  * 
@@ -18,14 +21,24 @@ package com.arunwizz.crawlersystem.application;
  * @author aruny
  *
  */
-public class WebClawlerette implements Runnable {
+public class WebCrawlerette implements Runnable {
 
-	public WebClawlerette(String seedUrl) {
-		
+	private static final Logger LOGGER = LoggerFactory.getLogger(WebCrawlerette.class);
+	private FrontierWriter frontierWriter;
+	private String seedUrl;
+	public WebCrawlerette(FrontierWriter frontierWriter, String seedUrl) {
+		this.frontierWriter = frontierWriter;
+		this.seedUrl = seedUrl;
 	}
 	
 	@Override
 	public void run() {
+		try {
+			LOGGER.info("Starting to crawl domain with seed " + seedUrl);
+			frontierWriter.write(seedUrl);
+		} catch (Exception e) {
+			LOGGER.error(e.getMessage());
+		}
 		
 
 	}

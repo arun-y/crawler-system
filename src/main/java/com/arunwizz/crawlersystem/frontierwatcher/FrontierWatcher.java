@@ -32,7 +32,6 @@ public class FrontierWatcher implements Runnable {
 	}
 
 	public void run() {
-
 		Path frontierPath = Paths.get(frontierPathURI);
 		LOGGER.debug("Watching path " + frontierPathURI);
 		try {
@@ -77,7 +76,8 @@ public class FrontierWatcher implements Runnable {
 						// delete the .ready file
 						boolean deleted = absolutePath.toFile().delete();
 						if (deleted) {
-							LOGGER.trace("successfully deleted file " + filename);
+							LOGGER.trace("successfully deleted file "
+									+ filename);
 						} else {
 							LOGGER.trace("failed deleting file " + filename);
 						}
