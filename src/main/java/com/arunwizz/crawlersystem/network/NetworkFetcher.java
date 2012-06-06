@@ -22,7 +22,6 @@ import org.apache.http.message.BasicHttpRequest;
 import org.apache.http.params.CoreConnectionPNames;
 import org.apache.http.params.CoreProtocolPNames;
 import org.apache.http.params.HttpParams;
-import org.apache.http.params.SyncBasicHttpParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

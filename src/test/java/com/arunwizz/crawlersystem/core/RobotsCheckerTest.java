@@ -1,6 +1,6 @@
 package com.arunwizz.crawlersystem.core;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.net.MalformedURLException;
 import java.net.URL;

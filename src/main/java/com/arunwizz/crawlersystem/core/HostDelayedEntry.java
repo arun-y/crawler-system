@@ -1,6 +1,5 @@
 package com.arunwizz.crawlersystem.core;
 
-import java.util.Date;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
 
@@ -12,39 +11,18 @@ import java.util.concurrent.TimeUnit;
  */
 class HostDelayedEntry implements Delayed {
 
-	private String hostReady;
+	private final String host;
+	private final long delayTime;
+	private final long creationTime;
 
-	public String getHostReadyEntry() {
-		return hostReady;
-	}
-
-	public void setHostReadyEntry(String hostReadyEntry) {
-		this.hostReady = hostReadyEntry;
-	}
-
-	public long getDelayTime() {
-		return delayTime;
-	}
-
-	public void setDelayTime(long delayTime) {
+	public HostDelayedEntry(String host, long delayTime) {
+		this.host = host;
 		this.delayTime = delayTime;
+		this.creationTime = System.currentTimeMillis();
 	}
 
-	public long getCreationTime() {
-		return creationTime;
-	}
-
-	public void setCreationTime(long creationTime) {
-		this.creationTime = creationTime;
-	}
-
-	private long delayTime;
-	private long creationTime;
-
-	public HostDelayedEntry(String hostReadyEntry, long delayTime) {
-		this.hostReady = hostReadyEntry;
-		this.delayTime = delayTime;
-		this.creationTime = new Date().getTime();
+	public String getHost() {
+		return host;
 	}
 
 	@Override
@@ -66,7 +44,7 @@ class HostDelayedEntry implements Delayed {
 	@Override
 	public long getDelay(TimeUnit unit) {
 
-		long delay = delayTime - (new Date().getTime() - creationTime);
+		long delay = delayTime - (System.currentTimeMillis() - creationTime);
 
 		switch (unit) {
 		case DAYS:
