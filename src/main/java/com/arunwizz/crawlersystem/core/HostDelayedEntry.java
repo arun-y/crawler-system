@@ -63,5 +63,10 @@ class HostDelayedEntry implements Delayed {
 			return delay;
 		}
 	}
+	
+	@Override
+	public String toString() {
+		return host + ":" + delayTime;
+	}
 
 }

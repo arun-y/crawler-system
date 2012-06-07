@@ -6,8 +6,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.HashMap;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 
@@ -50,8 +50,9 @@ public class CrawlerManager implements Runnable {
 	private BlockingQueue<String> readyQueue;
 	// Thread-safe unbounded blocking queue
 	private HostWaitingQueue<HostDelayedEntry> waitQueue;
-	// dictionary of current hosts being managed by crawler manager
-	private ConcurrentHashMap<String, LinkedBlockingQueue<URL>> hostDictionary;
+	// Not thread-safe, synchronise the access, dictionary of current hosts
+	// being managed by crawler manager
+	private HashMap<String, LinkedBlockingQueue<URL>> hostDictionary;
 
 	/*
 	 * CRAWLING REQUESt MESSAGE HANDLER
@@ -66,9 +67,8 @@ public class CrawlerManager implements Runnable {
 		this.requestMessageQueue = new PriorityBlockingQueue<CrawlingRequestMessage>();
 		this.readyQueue = new LinkedBlockingQueue<String>();
 		this.waitQueue = new HostWaitingQueue<HostDelayedEntry>(readyQueue);
-		this.hostDictionary = new ConcurrentHashMap<String, LinkedBlockingQueue<URL>>(
-				MAX_HOST_COUNT, 0.75f, 2);// maximum two thread can access this
-											// map
+		this.hostDictionary = new HashMap<String, LinkedBlockingQueue<URL>>(
+				MAX_HOST_COUNT);
 
 		Thread waitingQueueThread = new Thread(waitQueue,
 				"Waiting Queue Thread");
@@ -141,17 +141,15 @@ public class CrawlerManager implements Runnable {
 								// LinkedBlockingQueue
 								hostDictionary.put(hostname,
 										new LinkedBlockingQueue<URL>());
-							}
-						}
-						// add the url into host queue
-						hostDictionary.get(hostname).put(urlObject);
-						// mark this host as ready
-						synchronized (readyQueue) {
-							// check then add operation is synchronized
-							// as waiting queue thread can also add host
-							// so both operation should be together atomic
-							if (!readyQueue.contains(hostname)) {
-								readyQueue.put(hostname);
+								// add the url into host queue
+								hostDictionary.get(hostname).put(urlObject);
+								// mark this host as ready
+								if (!readyQueue.contains(hostname)) {
+									readyQueue.put(hostname);
+								}
+							} else {
+								// add the url into host queue
+								hostDictionary.get(hostname).put(urlObject);
 							}
 						}
 					} catch (InterruptedException e) {

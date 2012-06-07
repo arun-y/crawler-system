@@ -23,10 +23,10 @@ public class HostWaitingQueue<T extends Delayed> implements Runnable {
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(HostWaitingQueue.class);
 
-	//waiting queue
+	// waiting queue
 	private DelayQueue<HostDelayedEntry> delayQueue;
-	
-	//call back queue once host is out from wait queue
+
+	// call back queue once host is out from wait queue
 	private BlockingQueue<String> readyQueue;
 
 	public HostWaitingQueue(BlockingQueue<String> readyQueue) {
@@ -36,27 +36,29 @@ public class HostWaitingQueue<T extends Delayed> implements Runnable {
 
 	public void put(HostDelayedEntry delayedObj) {
 		delayQueue.put(delayedObj);
-		Statistician.hostWaitQueueEnter(delayedObj.getHost());		
+		Statistician.hostWaitQueueEnter(delayedObj.getHost());
 	}
 
 	public void run() {
 		while (true) {
 			try {
-			HostDelayedEntry delayedObj = null;
-			delayedObj = delayQueue.take();
-			if (delayedObj != null) {
-				Statistician.hostWaitQueueExit(delayedObj.getHost());				
-				synchronized (readyQueue) {
-					if (!readyQueue.contains(delayedObj.getHost())) {
-						LOGGER.trace("Adding host {} into ready queue", delayedObj.getHost());
-						readyQueue.put(delayedObj.getHost());
-					}
+				HostDelayedEntry delayedObj = null;
+				delayedObj = delayQueue.take();
+				if (delayedObj != null) {
+					Statistician.hostWaitQueueExit(delayedObj.getHost());
+					LOGGER.trace("Adding host {} into ready queue",
+							delayedObj.getHost());
+					readyQueue.put(delayedObj.getHost());
 				}
-			} 
 			} catch (InterruptedException e) {
 				LOGGER.error("Interrupted!! - {}", e.getMessage());
 			}
 		}
+	}
+
+	@Override
+	public String toString() {
+		return delayQueue.toString();
 	}
 
 }

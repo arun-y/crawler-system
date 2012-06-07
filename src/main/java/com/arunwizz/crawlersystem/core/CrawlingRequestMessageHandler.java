@@ -58,18 +58,23 @@ public class CrawlingRequestMessageHandler implements Runnable {
 				LOGGER.trace("ready queue after take() - {}", readyQueue);
 				LOGGER.info("Found host " + hostReadyEntry + " in ready queue");
 				LOGGER.info("Look for next pending url for this host");
-				LOGGER.info(hostReadyEntry + " host queue size: "
-						+ hostDictionary.get(hostReadyEntry).size());
+
 				//FIXME: somehow host entries are still found, after taking out 
 				//from ready queue.
 				URL urlObject = null;
+				BlockingQueue<URL> hostPendingUrl = null;
 				synchronized (hostDictionary) {
-					urlObject = hostDictionary.get(hostReadyEntry).poll();
-					if (urlObject == null) {
-						LOGGER.debug("No url pending for host {}, removing from host dictionary", hostReadyEntry);
+					hostPendingUrl = hostDictionary.get(hostReadyEntry); 
+					if (hostPendingUrl != null && hostPendingUrl.isEmpty()) {
+						LOGGER.info("No url pending for host {}, removing from host dictionary", hostReadyEntry);
 						hostDictionary.remove(hostReadyEntry);
 						continue;
+					} 
+					if (hostPendingUrl == null) {
+						LOGGER.warn("This should not happen, host found in ready queue without entry in host dictionary");
+						continue;
 					}
+					urlObject = hostPendingUrl.take();
 				}
 				LOGGER.info("Found path " + urlObject.getPath() + " on host "
 						+ hostReadyEntry);
@@ -81,15 +86,15 @@ public class CrawlingRequestMessageHandler implements Runnable {
 						urlObject.getPath());
 				LOGGER.info("Calling execute for " + request);
 				long exceuteStartTime = System.currentTimeMillis();
-				networkFetcher.fetch(httpHost, request,
-						new HTTPResponseHandler(httpHost, request));
+//				networkFetcher.fetch(httpHost, request,
+//						new HTTPResponseHandler(httpHost, request));
 				LOGGER.info("request sent count " + requestCount++);
 				LOGGER.info("Execute completed in "
 						+ (System.currentTimeMillis() - exceuteStartTime));
 				// above execute will return immediately, put the host
 				// in wait
 				// queue
-				waitQueue.put(new HostDelayedEntry(hostReadyEntry, 5000));
+				waitQueue.put(new HostDelayedEntry(hostReadyEntry, 20000));
 			} catch (InterruptedException e) {
 				LOGGER.error("Interrupted!! - {}", e.getMessage());
 			}
