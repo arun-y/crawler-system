@@ -86,8 +86,8 @@ public class CrawlingRequestMessageHandler implements Runnable {
 						urlObject.getPath());
 				LOGGER.info("Calling execute for " + request);
 				long exceuteStartTime = System.currentTimeMillis();
-//				networkFetcher.fetch(httpHost, request,
-//						new HTTPResponseHandler(httpHost, request));
+				networkFetcher.fetch(httpHost, request,
+						new HTTPResponseHandler(httpHost, request));
 				LOGGER.info("request sent count " + requestCount++);
 				LOGGER.info("Execute completed in "
 						+ (System.currentTimeMillis() - exceuteStartTime));

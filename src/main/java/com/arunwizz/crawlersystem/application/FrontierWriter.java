@@ -24,7 +24,6 @@ public class FrontierWriter implements Runnable {
 
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(FrontierWriter.class);
-	private final Object lock = new Object();
 	private final BlockingDeque<String> requestQueue;
 
 	public FrontierWriter() {
@@ -49,17 +48,19 @@ public class FrontierWriter implements Runnable {
 			short requestCounter = 0;// to track no. of urls in a given request
 										// number
 			while (true) {
-				url = requestQueue.poll(20, TimeUnit.SECONDS);
+				url = requestQueue.poll(5, TimeUnit.SECONDS);
 				if (url == null) {
 					if (fileWriter != null) {
-						LOGGER.debug("Nothing received in last 20 secs. Comitting whatever written");
+						LOGGER.debug("Nothing received in last 5 secs. Comitting whatever written");
 						// means nothing received in queue, after waiting for 20
 						// sec.
 						// commit whatever it is
 						fileWriter.close();
+						fileWriter = null;
 						File file = new File(FRONTIER_PATH + REQUEST_NUMBER
 								+ ".ready");
-						file.createNewFile();// indicate frontier						
+						LOGGER.info(file.getAbsolutePath());
+						boolean s = file.createNewFile();// indicate frontier						
 						requestCounter = 0;
 					}
 					continue;
