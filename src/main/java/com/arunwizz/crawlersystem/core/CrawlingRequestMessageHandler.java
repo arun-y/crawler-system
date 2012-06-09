@@ -59,7 +59,6 @@ public class CrawlingRequestMessageHandler implements Runnable {
 				LOGGER.info("Found host " + hostReadyEntry + " in ready queue");
 				LOGGER.info("Look for next pending url for this host");
 
-				//FIXME: somehow host entries are still found, after taking out 
 				//from ready queue.
 				URL urlObject = null;
 				BlockingQueue<URL> hostPendingUrl = null;

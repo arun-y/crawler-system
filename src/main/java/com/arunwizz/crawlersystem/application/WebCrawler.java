@@ -31,6 +31,7 @@ public class WebCrawler {
 	public static final int LISTENER_SOCKET_PORT = 54030;
 
 	private static Queue<String> downloadedStatusQueue;
+	Object lock = new Object();
 
 	public static void main(String argv[]) throws IOException {
 		if (argv.length != 1) {
@@ -38,7 +39,12 @@ public class WebCrawler {
 			System.exit(1);
 		}
 		String seedFile = argv[0];
+		WebCrawler crawler = new WebCrawler();
+		crawler.start(seedFile);
 
+	}
+
+	private void start(String seedFile) throws IOException {
 		LOGGER.info("Starting frontier writer therad");
 		FrontierWriter fw = new FrontierWriter();
 		Thread fwt = new Thread(fw, "FrontierWriter");
@@ -46,7 +52,8 @@ public class WebCrawler {
 		LOGGER.info("Started frontier writer thread");
 
 		LOGGER.info("Starting download listner thread");
-		Thread downloadStatusListnerThread = new Thread(new DownloadStatusListner());
+		Thread downloadStatusListnerThread = new Thread(
+				new DownloadStatusListner());
 		downloadStatusListnerThread.start();
 		LOGGER.info("Started download listner thread");
 
@@ -60,7 +67,8 @@ public class WebCrawler {
 			String seed;
 			while ((seed = reader.readLine()) != null) {
 				LOGGER.info("Starting crawlerette for " + seed);
-				crawertte = new WebCrawlerette(fw, seed, downloadedStatusQueue);
+				crawertte = new WebCrawlerette(fw, seed, downloadedStatusQueue,
+						lock);
 				t = new Thread(tg, crawertte);
 				t.start();
 				LOGGER.info("Started crawlerette for " + seed);
@@ -85,6 +93,7 @@ public class WebCrawler {
 				reader.close();
 			}
 		}
+
 	}
 
 	/**
@@ -93,9 +102,9 @@ public class WebCrawler {
 	 * @author aruny
 	 * 
 	 */
-	private static class DownloadStatusListner implements Runnable {
+	private final class DownloadStatusListner implements Runnable {
 
-		private static final Logger LOGGER = LoggerFactory
+		private final Logger LOGGER = LoggerFactory
 				.getLogger(DownloadStatusListner.class);
 
 		@Override
@@ -105,39 +114,52 @@ public class WebCrawler {
 			try {
 				sSocket = new ServerSocket(LISTENER_SOCKET_PORT);
 				do {
-					LOGGER.trace("Wating for download status message");
-					cSocket = sSocket.accept();
-					LOGGER.trace("Received download status message");
+					BufferedReader reader = null;
+					try {
+						LOGGER.trace("Wating for download status message");
+						cSocket = sSocket.accept();
+						LOGGER.trace("Received download status message");
 
-					BufferedReader reader = new BufferedReader(
-							new InputStreamReader(cSocket.getInputStream()));
-					synchronized (downloadedStatusQueue) {
-						downloadedStatusQueue.add(reader.readLine());
-						downloadedStatusQueue.notifyAll();
+						reader = new BufferedReader(
+								new InputStreamReader(cSocket.getInputStream()));
+						synchronized (lock) {
+							String message = reader.readLine();
+							LOGGER.debug("Received Message {}", message);
+							downloadedStatusQueue.add(message);
+							lock.notifyAll();
+						}
+						reader.close();
+						cSocket.close();// FIXME: will it close reader as well
+						LOGGER.trace("Informed crawlerette");
+
+					} catch (IOException e) {
+						LOGGER.error(e.getMessage());
+						if (reader != null) {
+							try {
+								reader.close();
+							} catch (IOException e1) {
+								LOGGER.error(e1.getMessage());
+							}
+						}
+						if (sSocket != null) {
+							try {
+								sSocket.close();
+							} catch (IOException e2) {
+								LOGGER.error(e2.getMessage());
+							}
+						}
+						if (cSocket != null) {
+							try {
+								cSocket.close();
+							} catch (IOException e3) {
+								LOGGER.error(e3.getMessage());
+							}
+						}
 					}
-					cSocket.close();//FIXME: will it close reader as well
-					LOGGER.trace("Informed crawlerette");
 				} while (true);
-
 			} catch (IOException e) {
 				LOGGER.error(e.getMessage());
-			} finally {
-				if (sSocket != null) {
-					try {
-						sSocket.close();
-					} catch (IOException e) {
-						LOGGER.error(e.getMessage());
-					}
-				}
-				if (cSocket != null) {
-					try {
-						cSocket.close();
-					} catch (IOException e) {
-						LOGGER.error(e.getMessage());
-					}
-				}				
 			}
 		}
 	}
-
 }

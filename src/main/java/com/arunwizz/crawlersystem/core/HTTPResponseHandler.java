@@ -75,10 +75,10 @@ public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
 				os.close();
 				is.close();
 
-				// inform crawler
-				sendMessageToCrawler("200:" + responseFile.getAbsolutePath());
 
 			}
+			// inform crawler
+			sendMessageToCrawler("200:" + responseFile.getAbsolutePath());
 			LOGGER.info(responseFile.getAbsolutePath() + " saved");
 		} catch (IllegalStateException e) {
 			LOGGER.error(e.getMessage());
@@ -123,6 +123,8 @@ public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
 			BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
 					cSocket.getOutputStream()));
 			writer.write(message);
+			writer.flush();
+			LOGGER.info("Informing crawlerette: {}", message);
 			cSocket.close();
 
 		} catch (UnknownHostException e) {

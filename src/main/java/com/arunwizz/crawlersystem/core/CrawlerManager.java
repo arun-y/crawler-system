@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -39,6 +40,11 @@ public class CrawlerManager implements Runnable {
 	public final static int MAX_HOST_COUNT = 50;
 
 	/*
+	 * ALREADY DOWNLOADED SET
+	 */
+	private final HashSet<String> alreadyDownloadedSet;
+	
+	/*
 	 * INCOMING REQUEST QUEUE
 	 */
 	// incoming crawling request message blocking queue
@@ -64,6 +70,7 @@ public class CrawlerManager implements Runnable {
 	private RobotsChecker robotsChecker = new RobotsChecker();
 
 	public CrawlerManager() throws IOException {
+		this.alreadyDownloadedSet = new HashSet<String>();
 		this.requestMessageQueue = new PriorityBlockingQueue<CrawlingRequestMessage>();
 		this.readyQueue = new LinkedBlockingQueue<String>();
 		this.waitQueue = new HostWaitingQueue<HostDelayedEntry>(readyQueue);
@@ -130,37 +137,42 @@ public class CrawlerManager implements Runnable {
 					continue;
 				}
 
-				if (isRobotsPass(urlObject)) {
-					String hostname = urlObject.getHost();
-					try {
-						// check if this host entry already exists, if not
-						// create it
-						synchronized (hostDictionary) {
-							if (!hostDictionary.containsKey(hostname)) {
-								// new host found, create a new
-								// LinkedBlockingQueue
-								hostDictionary.put(hostname,
-										new LinkedBlockingQueue<URL>());
-								// add the url into host queue
-								hostDictionary.get(hostname).put(urlObject);
-								// mark this host as ready
-								if (!readyQueue.contains(hostname)) {
-									readyQueue.put(hostname);
-								}
-							} else {
-								// add the url into host queue
-								hostDictionary.get(hostname).put(urlObject);
-							}
-						}
-					} catch (InterruptedException e) {
-						LOGGER.error(e.getMessage());
-						// TODO: log this url into status table
-					}
+				if (alreadySeen(urlObject)) {
+					// TODO: log this url into status table
+					LOGGER.debug("Aready downloaded, ignoring url {}",
+							urlObject);
+					continue;
+				}
 
-				} else {
+				if (!robotsChecker.isPass(urlObject)) {
 					// TODO: log this url into status table
 					LOGGER.debug("Robots check failed, ignoring url" + url);
 					continue;
+				}
+				String hostname = urlObject.getHost();
+				try {
+					// check if this host entry already exists, if not
+					// create it
+					synchronized (hostDictionary) {
+						if (!hostDictionary.containsKey(hostname)) {
+							// new host found, create a new
+							// LinkedBlockingQueue
+							hostDictionary.put(hostname,
+									new LinkedBlockingQueue<URL>());
+							// add the url into host queue
+							hostDictionary.get(hostname).put(urlObject);
+							// mark this host as ready
+							if (!readyQueue.contains(hostname)) {
+								readyQueue.put(hostname);
+							}
+						} else {
+							// add the url into host queue
+							hostDictionary.get(hostname).put(urlObject);
+						}
+					}
+				} catch (InterruptedException e) {
+					LOGGER.error(e.getMessage());
+					// TODO: log this url into status table
 				}
 			}
 			if (reader != null) {
@@ -183,8 +195,8 @@ public class CrawlerManager implements Runnable {
 		}
 	}
 
-	private boolean isRobotsPass(URL url) throws RobotsCheckerException {
-		return robotsChecker.isPass(url);
+	private boolean alreadySeen(URL urlObject) {
+		// TODO Auto-generated method stub
+		return false;
 	}
-
 }

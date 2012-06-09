@@ -33,14 +33,17 @@ public class WebCrawlerette implements Runnable {
 			.getLogger(WebCrawlerette.class);
 	private FrontierWriter frontierWriter;
 	private String seedUrl;
+	
 	private Queue<String> downloadStatusQueue;
+	private Object lock;
 	
 	private HashMap<byte[], String> hostUrlDigestMap = new HashMap<byte[], String>();
 
-	public WebCrawlerette(FrontierWriter frontierWriter, String seedUrl, Queue<String> downloadStatusQueue) {
+	public WebCrawlerette(FrontierWriter frontierWriter, String seedUrl, Queue<String> downloadStatusQueue, Object lock) {
 		this.frontierWriter = frontierWriter;
 		this.seedUrl = seedUrl;
 		this.downloadStatusQueue = downloadStatusQueue;
+		this.lock = lock;
 	}
 
 	@Override
@@ -55,25 +58,19 @@ public class WebCrawlerette implements Runnable {
 			String message = null;
 			String[] messageSplit = null;
 			do {
-				synchronized (downloadStatusQueue) {// acquire the queue monitor
+				synchronized (lock) {// acquire the queue monitor
 					message = downloadStatusQueue.poll();
 					while (message == null) {
-						LOGGER.trace("Waiting for download status");
-						downloadStatusQueue.wait(10000);
-						LOGGER.trace("Getting up to check download status");
+						lock.wait(10000);
 						message = downloadStatusQueue.poll();
 					}
 				}
 				LOGGER.trace("Received status {}", message);
 				messageSplit = message.split(":");
 				String status = messageSplit[0];
-				byte[] urlDigest = messageSplit[1].getBytes(Charset
-						.forName("UTF-8"));
-				LOGGER.debug("Received status for {}",
-						hostUrlDigestMap.get(urlDigest));
 				if ("200".equals(status)) {
-					LOGGER.debug("Download successful {}",
-							hostUrlDigestMap.get(urlDigest));
+					LOGGER.info("Download successful {}",
+							messageSplit[1]);
 					// read the file, clean, parse html links, save file for
 					// future
 					// processing
