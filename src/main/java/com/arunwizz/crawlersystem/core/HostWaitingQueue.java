@@ -1,6 +1,5 @@
 package com.arunwizz.crawlersystem.core;
 
-import java.util.Date;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;

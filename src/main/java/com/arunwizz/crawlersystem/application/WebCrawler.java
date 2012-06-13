@@ -30,8 +30,8 @@ public class WebCrawler {
 	public static final String CRAWLED_LOCATION = "/data/crawler_system/crawled_host/";
 	public static final int LISTENER_SOCKET_PORT = 54030;
 
-	private static Queue<String> downloadedStatusQueue;
-	Object lock = new Object();
+	private static Queue<String> newRequestQueue;
+	Object newRequestQueueMonitor = new Object();
 
 	public static void main(String argv[]) throws IOException {
 		if (argv.length != 1) {
@@ -51,39 +51,45 @@ public class WebCrawler {
 		fwt.start();
 		LOGGER.info("Started frontier writer thread");
 
+		LOGGER.info("Starting HTMLPageProcessor thread");
+		HTMLPageProcessor hpp = new HTMLPageProcessor(newRequestQueue,
+				newRequestQueueMonitor);
+		Thread hppt = new Thread(hpp);
+		hppt.start();
+		LOGGER.info("Started HTMLPageProcessor thread");
+
 		LOGGER.info("Starting download listner thread");
 		Thread downloadStatusListnerThread = new Thread(
-				new DownloadStatusListner());
+				new DownloadStatusListner(hpp));
 		downloadStatusListnerThread.start();
 		LOGGER.info("Started download listner thread");
-
 		BufferedReader reader = null;
 		try {
 			reader = new BufferedReader(new FileReader(new File(seedFile)));
-			downloadedStatusQueue = new LinkedList<String>();
+			newRequestQueue = new LinkedList<String>();
 			WebCrawlerette crawertte;
 			ThreadGroup tg = new ThreadGroup("Crawlerette");
 			Thread t;
 			String seed;
 			while ((seed = reader.readLine()) != null) {
 				LOGGER.info("Starting crawlerette for " + seed);
-				crawertte = new WebCrawlerette(fw, seed, downloadedStatusQueue,
-						lock);
+				crawertte = new WebCrawlerette(fw, seed, newRequestQueue, newRequestQueueMonitor);
 				t = new Thread(tg, crawertte);
 				t.start();
 				LOGGER.info("Started crawlerette for " + seed);
 			}
 			reader.close();
 
-			// wait on tg, the last crawerette will be awaking/notifying
-			// tg to main thread
-			LOGGER.info("Going to wait till the last crawlerette notifies me");
-			synchronized (tg) {
-				tg.wait();
-			}
-			fwt.join();// let frontier writer die
-			LOGGER.info("Seems all crawlerettes are done, time go forever");
-			System.exit(0);
+			do {
+				String newRequest = null;
+				synchronized (newRequestQueueMonitor) {
+					do {
+						newRequestQueueMonitor.wait();
+						newRequest = newRequestQueue.poll();
+					} while (newRequestQueue == null);
+				}
+				//TODO: inform crawlerette
+			} while (true);
 
 		} catch (Exception e) {
 			LOGGER.error(e.getMessage());
@@ -93,7 +99,6 @@ public class WebCrawler {
 				reader.close();
 			}
 		}
-
 	}
 
 	/**
@@ -107,6 +112,12 @@ public class WebCrawler {
 		private final Logger LOGGER = LoggerFactory
 				.getLogger(DownloadStatusListner.class);
 
+		private final HTMLPageProcessor hpp;
+
+		public DownloadStatusListner(HTMLPageProcessor hpp) {
+			this.hpp = hpp;
+		}
+
 		@Override
 		public void run() {
 			ServerSocket sSocket = null;
@@ -115,22 +126,27 @@ public class WebCrawler {
 				sSocket = new ServerSocket(LISTENER_SOCKET_PORT);
 				do {
 					BufferedReader reader = null;
+
 					try {
 						LOGGER.trace("Wating for download status message");
 						cSocket = sSocket.accept();
 						LOGGER.trace("Received download status message");
 
-						reader = new BufferedReader(
-								new InputStreamReader(cSocket.getInputStream()));
-						synchronized (lock) {
-							String message = reader.readLine();
-							LOGGER.debug("Received Message {}", message);
-							downloadedStatusQueue.add(message);
-							lock.notifyAll();
+						reader = new BufferedReader(new InputStreamReader(
+								cSocket.getInputStream()));
+						String message = reader.readLine();
+						LOGGER.debug("Received Message {}", message);
+						String[] messageSpit = message.split(":");
+						if (!"SUCCESS".equals(messageSpit[0])) {
+							LOGGER.error("Can't process failed downloaded");
+							//TODO: logic to put this request again, can be here
+						} else {
+							hpp.process(message);
+							LOGGER.debug("Put for processing to HTML Processor");
 						}
+
 						reader.close();
-						cSocket.close();// FIXME: will it close reader as well
-						LOGGER.trace("Informed crawlerette");
+						cSocket.close();
 
 					} catch (IOException e) {
 						LOGGER.error(e.getMessage());

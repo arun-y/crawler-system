@@ -1,13 +1,9 @@
 package com.arunwizz.crawlersystem.application;
 
-import java.nio.charset.Charset;
-import java.util.HashMap;
 import java.util.Queue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.arunwizz.crawlersystem.utils.CommonUtil;
 
 /**
  * A WebCrawler Thread, to initiate the crawling request
@@ -33,17 +29,16 @@ public class WebCrawlerette implements Runnable {
 			.getLogger(WebCrawlerette.class);
 	private FrontierWriter frontierWriter;
 	private String seedUrl;
-	
-	private Queue<String> downloadStatusQueue;
-	private Object lock;
-	
-	private HashMap<byte[], String> hostUrlDigestMap = new HashMap<byte[], String>();
 
-	public WebCrawlerette(FrontierWriter frontierWriter, String seedUrl, Queue<String> downloadStatusQueue, Object lock) {
+	private final Queue<String> newRequestQueue;
+	private final Object newRequestQueueMonitor;
+
+	public WebCrawlerette(FrontierWriter frontierWriter, String seedUrl,
+			Queue<String> requestQueue, Object requestQueueMonitor) {
 		this.frontierWriter = frontierWriter;
 		this.seedUrl = seedUrl;
-		this.downloadStatusQueue = downloadStatusQueue;
-		this.lock = lock;
+		this.newRequestQueue = requestQueue;
+		this.newRequestQueueMonitor = requestQueueMonitor;
 	}
 
 	@Override
@@ -53,35 +48,22 @@ public class WebCrawlerette implements Runnable {
 			LOGGER.debug("Writing request for {}", seedUrl);
 			frontierWriter.write(seedUrl);
 			LOGGER.debug("Request sent for {}", seedUrl);
-			byte[] urlMD5Digest = CommonUtil.getMD5EncodedDigest(seedUrl);
-			hostUrlDigestMap.put(urlMD5Digest, seedUrl);
-			String message = null;
-			String[] messageSplit = null;
 			do {
-				synchronized (lock) {// acquire the queue monitor
-					message = downloadStatusQueue.poll();
-					while (message == null) {
-						lock.wait(10000);
-						message = downloadStatusQueue.poll();
+				// wait for more request from master crawler
+				// TODO:
+				String requestURL = null;
+				// consumer
+				synchronized (newRequestQueueMonitor) {
+					requestURL = newRequestQueue.poll();
+					while (requestURL == null) {
+						newRequestQueueMonitor.wait();
+						requestURL = newRequestQueue.poll();
 					}
 				}
-				LOGGER.trace("Received status {}", message);
-				messageSplit = message.split(":");
-				String status = messageSplit[0];
-				if ("200".equals(status)) {
-					LOGGER.info("Download successful {}",
-							messageSplit[1]);
-					// read the file, clean, parse html links, save file for
-					// future
-					// processing
-					// TODO:
-				}
+				frontierWriter.write(requestURL);
 			} while (true);
-
 		} catch (Exception e) {
 			LOGGER.error(e.getMessage());
 		}
-
 	}
-
 }

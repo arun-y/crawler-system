@@ -78,7 +78,7 @@ public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
 
 			}
 			// inform crawler
-			sendMessageToCrawler("200:" + responseFile.getAbsolutePath());
+			sendMessageToCrawler("SUCCESS:" + request.getRequestLine().getUri() + ":" + responseFile.getAbsolutePath());
 			LOGGER.info(responseFile.getAbsolutePath() + " saved");
 		} catch (IllegalStateException e) {
 			LOGGER.error(e.getMessage());
@@ -105,14 +105,14 @@ public class HTTPResponseHandler implements FutureCallback<HttpResponse> {
 		// B-Tree persistence storage
 		LOGGER.info("[" + httpHost + "]" + request.getRequestLine() + "->" + ex);
 		// inform crawler
-		sendMessageToCrawler(ex.getMessage());
+		sendMessageToCrawler("FAILED-" + ex.getMessage() + ":" + request.getRequestLine().getUri());
 	}
 
 	public void cancelled() {
 		LOGGER.info("[" + httpHost + "]" + request.getRequestLine()
 				+ " cancelled");
 		// inform crawler
-		sendMessageToCrawler("CANCELLED");
+		sendMessageToCrawler("CANCELLED:" + request.getRequestLine().getUri());
 	}
 
 	private void sendMessageToCrawler(String message) {

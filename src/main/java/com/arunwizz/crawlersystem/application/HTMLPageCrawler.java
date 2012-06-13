@@ -16,14 +16,13 @@ import com.arunwizz.crawlersystem.application.ds.tree.Node;
 import com.arunwizz.crawlersystem.application.ds.tree.Tree;
 import com.arunwizz.crawlersystem.application.ds.tree.TreeUtil;
 import com.arunwizz.crawlersystem.application.pageparser.HTMLParser;
-import com.arunwizz.crawlersystem.application.pageparser.HTMLParserFactory;
 
 public class HTMLPageCrawler {
     
     private static Log logger = LogFactory.getLog(HTMLPageCrawler.class);
 
     public static void main(String argv[]) throws Exception {
-        HTMLParser pd = HTMLParserFactory.getParser(HTMLParserFactory.HTMLCleanerParser);//SEEMS GOOD
+        HTMLParser pd = null;//HTMLParserFactory.getParser(HTMLParserFactory.HTMLCleanerParser);//SEEMS GOOD
         //HTMLParser pd = HTMLParserFactory.getParser(HTMLParserFactory.XHTMLDOMParser);
         
         Date d1 = new Date();
@@ -62,7 +61,7 @@ public class HTMLPageCrawler {
             }
             
             logger.info("parsing  page at " + d1.getTime());
-            Document pageDomTree = pd.parse(stream);
+            Document pageDomTree = null;//pd.parse(stream);
             
             logger.info(pageDomTree);
             

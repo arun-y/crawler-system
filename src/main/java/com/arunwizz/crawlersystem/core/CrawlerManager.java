@@ -15,8 +15,6 @@ import java.util.concurrent.PriorityBlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.arunwizz.crawlersystem.core.exception.RobotsCheckerException;
-
 /**
  * Currently crawler manager runs as thread, in long term we can run it a
  * separate process which can communicate over tcp or http with frontier watcher
